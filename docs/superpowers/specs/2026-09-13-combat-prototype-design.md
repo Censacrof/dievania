@@ -21,61 +21,65 @@ Everything not needed to answer that is out of scope.
 
 ### Actions
 
-Every drawn die must be assigned to exactly one slot before rolling:
+Every action uses **one die**: pick the action, pick the die, the die rolls
+and the effect applies immediately. The next choice is made knowing the
+result. Damage against **Block** is absorbed and consumes the Block.
 
-| Slot | Effect |
+| Action | Effect |
 |---|---|
-| **Mace** | Sum of dice = damage to the chosen target, reduced by that enemy's Shield for the turn (min 0). |
-| **Shield** | Sum of dice = damage blocked this turn, against the combined attack of all enemies. |
-| **Miracle** | floor(sum / 2) = HP healed, capped at 30. Excess is lost. |
+| **Mace** | roll → damage to the selected target, minus its Block (which is reduced by what it absorbed) |
+| **Shield** | roll → added to own Block |
+| **Miracle** | floor(roll / 2) HP healed, capped at 30 |
+| **Skip** | die discarded, nothing happens |
+
+Block expires at the start of the owner's own turn: what you build during
+your turn protects you during the enemy turn, and vice versa.
 
 ### Enemies
 
 Enemies mirror the player: each has a **dice bag, a discard pile and a hand**
-of fixed size, drawn and reshuffled with the same rules. Every enemy has a set
-of named **moves**. A move is an allocation rule over the drawn hand: the
-`shield` largest dice go to Shield, the rest to Attack. A move may add an
-effect (currently only `lifesteal`: the enemy heals for the damage the player
-actually takes this turn, capped at its max HP).
+of fixed size, drawn and reshuffled with the same rules. Enemy actions are
+**Attack** (like Mace), **Shield**, and **Bite** (Attack that also heals the
+enemy for the damage that got through, capped at max HP).
 
-Moves form a **Markov chain**: every move declares the weights of the next
-move as a function of `{ self, player }`, the HP fractions (0..1) of the enemy
-and of the player. Each enemy definition also has `opening` weights for its
-first move. Only the **next** move is ever visible.
+Actions form a **Markov chain per action, not per turn**: after every action
+the enemy picks its next one from `chain[lastAction](ctx)`, where `ctx` is
+`{ self, player, block }`: HP fractions (0..1) of the enemy and the player,
+plus the enemy's own current Block. `opening` weights pick the very first
+action at encounter start. The enemy always uses the **first die in hand
+order**. Only the **next** action and the die it will use are visible.
 
 ### Turn
 
-1. Player draws 4 dice. Every living enemy already shows its move, its drawn
-   hand and which die goes to Attack or Shield (e.g. "Bite: d20 d20 d6 →
-   Attack, drains"). Bags and discard piles of everyone are visible.
-2. Player assigns each die to a slot. If more than one enemy is alive the
-   player picks one target for all Mace dice.
-3. All dice roll (player and enemies).
-4. **Player phase**: Mace damage minus the target's Shield roll hits the
-   target; Miracle heals. Enemies at 0 HP die immediately and do not act.
-5. **Enemy phase**: surviving enemies attack. Damage taken =
-   max(0, total enemy attack − player Shield). Lifesteal applies.
-6. **Upkeep**: each survivor discards its hand, picks its next move from the
-   current move's weights, and draws a new hand. If all enemies are dead, the
-   next encounter starts (player bag reassembled); if it was the last one,
-   the player wins. If player HP ≤ 0, the player loses.
+1. **Player turn.** Hand of 4. Target is a sticky selection on the enemy
+   cards, defaulting to the first living enemy. Repeat until the hand is
+   empty: pick an action, pick a die, resolve. Enemies at 0 HP die
+   immediately. When the last die is spent the enemy turn begins and every
+   enemy's Block resets to 0.
+2. **Enemy turn.** Living enemies act one after another, one die per
+   action, each action revealed step by step (the UI waits ~0.9 s between
+   actions). After each action the chain picks the next one.
+3. **Upkeep.** Every survivor discards its hand and draws a new one; the
+   player's Block resets to 0 and a new hand of 4 is drawn. Back to 1.
 
-Overkill damage is lost (no spill-over to other enemies).
+If all enemies are dead the next encounter starts (player bag reassembled,
+fresh hand); after the last one the player wins. If player HP reaches 0 the
+player loses. Overkill damage is lost.
 
 ### Encounters (fixed sequence)
 
-| # | Enemy | HP | Bag | Hand | Moves (shield dice) |
+| # | Enemy | HP | Bag | Hand | Actions |
 |---|---|---|---|---|---|
-| 1 | Slime | 26 | 2d8 + 2d6 | 2 | Ooze (1), Splash (0), Harden (2) |
-| 2 | Bat ×2 | 10 each | d4 + 2d8 | 2 | Swoop (0), Flutter (2) |
-| 3 | Vampire Knight | 40 | 2d6 + d8 + d12 + 2d20 | 3 | Guard (1), Lunge (0), Bite (0, lifesteal) |
+| 1 | Slime | 26 | 2d8 + 2d6 | 2 | Attack, Shield |
+| 2 | Bat ×2 | 10 each | d4 + 2d8 | 2 | Attack, Shield |
+| 3 | Vampire Knight | 40 | 2d6 + d8 + d12 + 2d20 | 3 | Attack, Shield, Bite |
 
 Transition tendencies (exact weights live in `content.ts`):
 
-- Slime hardens only below half HP.
-- Bats swoop more when the player is below half HP.
-- Vampire Knight bites more when the player is below half HP (after Guard)
-  or when he is below half HP (after Lunge); after Bite he mostly Guards.
+- Slime shields more below half HP, and stops shielding once it has Block.
+- Bats attack more when the player is below half HP.
+- Vampire Knight bites more when he or the player is below half HP, and
+  does not shield again while he still has Block.
 
 ### End states
 
@@ -93,17 +97,19 @@ Pure TypeScript, no React imports. All randomness goes through an injected
 - `content.ts` — data only: player starting bag/HP, enemy definitions and
   encounter list.
 - `engine.ts` — types and functions:
-  - `newGame(rng, encounter = 0)` → initial state with the encounter loaded,
-    enemies given opening moves and hands, first player hand drawn.
-  - `resolveTurn(state, allocation, targetId, rng)` → new state after steps
-    3–6 above. `allocation` maps die id → slot. Throws if a die is
-    unassigned or the target is invalid.
-  - `enemyAllocation(enemy)` → which hand dice go to Attack and Shield.
+  - `newGame(rng, encounter = 0)` → encounter loaded, enemies given a first
+    action and a hand, player hand drawn, phase `player`.
+  - `playerAction(state, action, dieId, targetId, rng)` → resolves one
+    player action. Throws out of phase, for a die not in hand, or for an
+    invalid Mace target. Handles enemy death, encounter transition, win, and
+    the hand-off to phase `enemy`.
+  - `enemyStep(state, rng)` → one enemy action (the first living enemy with
+    dice left acts with its first die), or the upkeep that returns to phase
+    `player` when every hand is empty. No-op outside phase `enemy`.
   - `draw(pool, n, rng)`, `pickWeighted(weights, rng)` → shared helpers.
-  - rng consumption order: player hand dice → per living enemy: attack dice
-    then shield dice → per survivor: next move, then its draws → player draws.
-- Every resolved turn appends human-readable lines to `state.log` (what was
-  rolled, damage dealt/taken, heals, deaths).
+  - rng order: one call per roll, one per draw, one per chain pick, in the
+    order the text above describes.
+- Every action appends one human-readable line to `state.log`.
 
 State is an immutable value; functions return new objects.
 
@@ -111,32 +117,29 @@ State is an immutable value; functions return new objects.
 
 Single component, `useState<GameState>`. English only.
 
-- Player panel: HP, encounter number; bag and discard contents listed under
-  the hand.
-- Enemy cards: name, HP, next move with hand allocation, bag and discard
-  contents. Click selects target; auto-selected when only one enemy is alive.
-- Hand: one button per die showing `d6`/`d20` and its slot. Click cycles
-  slot: unassigned → Mace → Shield → Miracle → Mace…
-- "Roll" button, enabled only when every die has a slot and a target exists.
-  After rolling, the dice show their face values next to the slot totals.
-- Log panel, newest at bottom.
-- Win/lose banner with Restart.
+- Header: HP, Block, encounter number, whose turn it is.
+- Enemy cards: name, HP, Block, hand (first die highlighted), "Next: attack
+  with d8", bag and discard contents. Click selects target.
+- Hand: one button per die, enabled only while an action is selected in the
+  player phase.
+- Action row: Mace, Shield, Miracle, Skip. The selected action stays
+  selected until changed, so repeated actions need one click per die.
+- Enemy phase: a `setTimeout` per step calls `enemyStep` every ~0.9 s.
+- Log panel, newest at bottom. Win/lose banner with Restart.
 
-No animations, no images, no routing, no persistence.
+No animations beyond the timed playback, no images, no routing, no
+persistence.
 
 ### Testing
 
 Vitest, engine only. TDD red → green → refactor. Test cases cover at least:
 
-- bag draw of 4, discard, reshuffle when bag is empty, reset per encounter
-- Mace sum minus enemy shield, floor at 0
-- Shield vs combined enemy attacks
-- Miracle heals floor(sum/2), capped at max HP
-- player-first ordering: a killed enemy does not attack
-- enemy draw and upkeep, weighted move picking, allocation by largest dice,
-  Markov weights reacting to HP, bats as two independent attackers, Bite
-  lifesteal
-- encounter transition, win, lose
+- bag draw, discard, reshuffle; weighted picking
+- each player action, Block absorption and consumption, die validation,
+  phase validation, turn hand-off with enemy Block reset
+- enemy attack, shield and bite; enemies acting in order; dead enemies
+  skipped; upkeep; player death
+- encounter transition, win, chain weights reacting to HP
 
 ### Out of scope (first experiments after playtest)
 
