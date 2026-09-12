@@ -51,3 +51,65 @@ describe('loadEncounter', () => {
     expect(s.enemies.map(e => e.id)).toEqual([0, 1])
   })
 })
+
+describe('resolveTurn vs Slime', () => {
+  it('Mace damage is the sum of dice; the Slime attacks back minus Shield (none)', () => {
+    const s = newGame(zero) // hand: 4×d6
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(3, 6)))
+    expect(next.enemies[0].hp).toBe(8)
+    expect(next.hp).toBe(27)
+    expect(next.hand).toHaveLength(4)
+    expect(next.discard.map(d => d.id)).toEqual([0, 1, 2, 3])
+  })
+
+  it('a killed enemy does not attack (player acts first)', () => {
+    const s = newGame(zero)
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(4, 6), f(4, 6), f(4, 6), f(4, 6), f(6, 6)))
+    expect(next.hp).toBe(30)
+    expect(next.log).toContain('Slime dies')
+  })
+
+  it('Shield blocks incoming damage, floored at 0', () => {
+    const s = newGame(zero)
+    const low = resolveTurn(s, allTo(s, 'shield'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(6, 6)))
+    expect(low.hp).toBe(28)
+    const high = resolveTurn(s, allTo(s, 'shield'), 0, q(f(6, 6), f(6, 6), f(6, 6), f(6, 6), f(6, 6)))
+    expect(high.hp).toBe(30)
+  })
+
+  it('Miracle heals floor(sum/2), applied before the enemy attack', () => {
+    const s = { ...newGame(zero), hp: 10 }
+    const next = resolveTurn(s, allTo(s, 'miracle'), 0, q(f(5, 6), f(5, 6), f(5, 6), f(5, 6), f(1, 6)))
+    expect(next.hp).toBe(19) // 10 + floor(20/2) − 1
+  })
+
+  it('Miracle never exceeds max HP', () => {
+    const s = { ...newGame(zero), hp: 29 }
+    const next = resolveTurn(s, allTo(s, 'miracle'), 0, q(f(5, 6), f(5, 6), f(5, 6), f(5, 6), f(1, 6)))
+    expect(next.hp).toBe(29) // capped at 30, then −1
+  })
+
+  it('the Slime alternates 1d6 and 2d6 attacks', () => {
+    let s = newGame(zero)
+    expect(currentIntent(s.enemies[0]).attack).toEqual([6])
+    s = resolveTurn(s, allTo(s, 'shield'), 0, zero)
+    expect(currentIntent(s.enemies[0]).attack).toEqual([6, 6])
+    s = resolveTurn(s, allTo(s, 'shield'), 0, zero)
+    expect(currentIntent(s.enemies[0]).attack).toEqual([6])
+  })
+
+  it('throws when a die is unassigned or the target is invalid', () => {
+    const s = newGame(zero)
+    const partial = { ...allTo(s, 'mace'), 3: undefined }
+    expect(() => resolveTurn(s, partial, 0, zero)).toThrow(/no slot/)
+    expect(() => resolveTurn(s, allTo(s, 'mace'), 7, zero)).toThrow(/target/i)
+  })
+
+  it('the player loses at 0 HP', () => {
+    const s = { ...newGame(zero), hp: 1 }
+    const next = resolveTurn(s, allTo(s, 'shield'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(6, 6)))
+    expect(next.hp).toBe(0)
+    expect(next.status).toBe('lost')
+    expect(resolveTurn(next, {}, 0, zero)).toBe(next)
+  })
+})

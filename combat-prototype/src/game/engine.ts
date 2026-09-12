@@ -56,6 +56,75 @@ export function newGame(rng: Rng): GameState {
   return drawHand(loadEncounter(empty, 0), rng)
 }
 
-export function resolveTurn(state: GameState, _allocation: Allocation, _targetId: number, _rng: Rng): GameState {
-  return state
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+
+export function resolveTurn(state: GameState, allocation: Allocation, targetId: number, rng: Rng): GameState {
+  if (state.status !== 'playing') return state
+  const unassigned = state.hand.find(d => !allocation[d.id])
+  if (unassigned) throw new Error(`Die ${unassigned.id} has no slot`)
+  const target = state.enemies.find(e => e.id === targetId && alive(e))
+  if (!target) throw new Error('Invalid target')
+
+  const log = [...state.log]
+
+  // Player rolls
+  const totals = { mace: 0, shield: 0, miracle: 0 }
+  const faces: string[] = []
+  for (const d of state.hand) {
+    const slot = allocation[d.id]!
+    const face = roll(d.sides, rng)
+    totals[slot] += face
+    faces.push(`d${d.sides}=${face} (${slot})`)
+  }
+  log.push(`You rolled ${faces.join(', ')} → Mace ${totals.mace}, Shield ${totals.shield}, Miracle ${totals.miracle}`)
+
+  // Enemy rolls (attack dice, then shield dice, per living enemy in order)
+  const rolls = new Map(
+    state.enemies.filter(alive).map(e => {
+      const intent = currentIntent(e)
+      const attack = sum(intent.attack.map(s => roll(s, rng)))
+      const shield = sum(intent.shield.map(s => roll(s, rng)))
+      return [e.id, { attack, shield }]
+    }),
+  )
+
+  // Player phase
+  const targetShield = rolls.get(targetId)!.shield
+  const damage = Math.max(0, totals.mace - targetShield)
+  let enemies = state.enemies.map(e => (e.id === targetId ? { ...e, hp: Math.max(0, e.hp - damage) } : e))
+  log.push(`Mace hits ${target.name} for ${damage}` + (targetShield ? ` (${targetShield} blocked)` : ''))
+  if (!alive(enemies.find(e => e.id === targetId)!)) log.push(`${target.name} dies`)
+
+  let hp = state.hp
+  if (totals.miracle > 0) {
+    const heal = Math.min(state.maxHp - hp, Math.floor(totals.miracle / 2))
+    hp += heal
+    log.push(`Miracle heals ${heal}`)
+  }
+
+  // Enemy phase
+  const attackers = enemies.filter(alive)
+  const incoming = sum(attackers.map(e => rolls.get(e.id)!.attack))
+  const taken = Math.max(0, incoming - totals.shield)
+  if (attackers.length > 0) {
+    hp -= taken
+    log.push(`${attackers.map(e => e.name).join(' and ')} attack for ${incoming}, Shield blocks ${Math.min(incoming, totals.shield)}, you take ${taken}`)
+  }
+  enemies = enemies.map(e => {
+    if (!alive(e)) return e
+    // ponytail: lifesteal heals the full damage taken; fine while the only lifestealer fights alone
+    const drained = currentIntent(e).lifesteal ? Math.min(e.maxHp - e.hp, taken) : 0
+    if (drained > 0) log.push(`${e.name} drains ${drained} HP`)
+    return { ...e, hp: e.hp + drained, step: e.step + 1 }
+  })
+
+  const next: GameState = { ...state, hp, enemies, log, discard: [...state.discard, ...state.hand], hand: [] }
+  if (hp <= 0) return { ...next, hp: 0, status: 'lost', log: [...log, 'You died.'] }
+  if (enemies.every(e => !alive(e))) {
+    if (state.encounter + 1 >= ENCOUNTERS.length) {
+      return { ...next, status: 'won', log: [...log, 'The castle falls silent. You win.'] }
+    }
+    return drawHand(loadEncounter(next, state.encounter + 1), rng)
+  }
+  return drawHand(next, rng)
 }
