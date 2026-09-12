@@ -7,11 +7,11 @@ const SLIME: EnemyDef = {
   hp: 26,
   dice: [8, 8, 6, 6],
   handSize: 2,
-  opening: { Ooze: 1, Splash: 1 },
-  moves: {
-    Ooze: { shield: 1, next: c => ({ Ooze: 1, Splash: 2, Harden: c.self < 0.5 ? 2 : 0 }) },
-    Splash: { shield: 0, next: c => ({ Ooze: 2, Splash: 1, Harden: c.self < 0.5 ? 3 : 0 }) },
-    Harden: { shield: 2, next: () => ({ Ooze: 1, Splash: 2 }) },
+  opening: { attack: 1, shield: 1 },
+  chain: {
+    attack: c => ({ attack: 2, shield: c.self < 0.5 ? 3 : 1 }),
+    shield: c => ({ attack: 3, shield: c.self < 0.5 && c.block < 6 ? 1 : 0 }),
+    bite: () => ({ attack: 1 }),
   },
 }
 
@@ -20,10 +20,11 @@ const BAT: EnemyDef = {
   hp: 10,
   dice: [4, 8, 8],
   handSize: 2,
-  opening: { Swoop: 1 },
-  moves: {
-    Swoop: { shield: 0, next: c => ({ Swoop: c.player < 0.5 ? 3 : 1, Flutter: 1 }) },
-    Flutter: { shield: 2, next: () => ({ Swoop: 1 }) },
+  opening: { attack: 1 },
+  chain: {
+    attack: c => ({ attack: c.player < 0.5 ? 4 : 2, shield: 1 }),
+    shield: () => ({ attack: 1 }),
+    bite: () => ({ attack: 1 }),
   },
 }
 
@@ -32,11 +33,11 @@ const VAMPIRE_KNIGHT: EnemyDef = {
   hp: 40,
   dice: [6, 6, 8, 12, 20, 20],
   handSize: 3,
-  opening: { Guard: 1 },
-  moves: {
-    Guard: { shield: 1, next: c => ({ Guard: 1, Lunge: 2, Bite: c.player < 0.5 ? 3 : 1 }) },
-    Lunge: { shield: 0, next: c => ({ Guard: 2, Lunge: 1, Bite: c.self < 0.5 ? 4 : 1 }) },
-    Bite: { shield: 0, lifesteal: true, next: () => ({ Guard: 3, Lunge: 1 }) },
+  opening: { attack: 1 },
+  chain: {
+    attack: c => ({ attack: 2, shield: c.block > 0 ? 0 : 1, bite: c.self < 0.5 || c.player < 0.5 ? 3 : 1 }),
+    shield: c => ({ attack: 2, bite: c.player < 0.5 ? 2 : 1 }),
+    bite: c => ({ attack: 1, shield: 1, bite: c.self < 0.5 ? 2 : 0 }),
   },
 }
 
