@@ -113,3 +113,59 @@ describe('resolveTurn vs Slime', () => {
     expect(resolveTurn(next, {}, 0, zero)).toBe(next)
   })
 })
+
+const atEncounter = (index: number) => drawHand(loadEncounter(newGame(zero), index), zero)
+
+describe('encounter flow', () => {
+  it('killing the Slime loads the two Bats with a fresh bag', () => {
+    const s = newGame(zero)
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(4, 6), f(4, 6), f(4, 6), f(4, 6), f(6, 6)))
+    expect(next.encounter).toBe(1)
+    expect(next.enemies.map(e => e.name)).toEqual(['Bat', 'Bat'])
+    expect(next.hand).toHaveLength(4)
+    expect(next.bag).toHaveLength(4)
+    expect(next.discard).toHaveLength(0)
+  })
+
+  it('Bats attack independently and a dead Bat does not attack', () => {
+    const s = atEncounter(1)
+    // player 4×6 on bat 0; bat 0 rolls 3, bat 1 rolls 4
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(6, 6), f(6, 6), f(6, 6), f(6, 6), f(3, 6), f(4, 6)))
+    expect(next.enemies.map(e => e.hp)).toEqual([0, 6])
+    expect(next.hp).toBe(26)
+    expect(next.encounter).toBe(1)
+  })
+
+  it("Vampire Knight's Guard shield reduces Mace damage", () => {
+    const s = atEncounter(2)
+    expect(currentIntent(s.enemies[0]).name).toBe('Guard')
+    // player 4×6 = 24; knight attack 2, shield 10
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(6, 6), f(6, 6), f(6, 6), f(6, 6), f(2, 6), f(10, 20)))
+    expect(next.enemies[0].hp).toBe(35 - 14)
+    expect(next.hp).toBe(28)
+    expect(currentIntent(next.enemies[0]).name).toBe('Lunge')
+  })
+
+  it('Bite drains the damage actually taken, capped at max HP, then the cycle wraps to Guard', () => {
+    const base = atEncounter(2)
+    const s = { ...base, enemies: [{ ...base.enemies[0], hp: 10, step: 2 }] }
+    expect(currentIntent(s.enemies[0]).name).toBe('Bite')
+    // player shield 4×1 = 4; bite 10 + 10 = 20 → taken 16
+    const next = resolveTurn(s, allTo(s, 'shield'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(10, 20), f(10, 20)))
+    expect(next.hp).toBe(14)
+    expect(next.enemies[0].hp).toBe(26)
+    expect(currentIntent(next.enemies[0]).name).toBe('Guard')
+
+    const nearFull = { ...s, enemies: [{ ...s.enemies[0], hp: 30 }] }
+    const capped = resolveTurn(nearFull, allTo(nearFull, 'shield'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(10, 20), f(10, 20)))
+    expect(capped.enemies[0].hp).toBe(35)
+  })
+
+  it('killing the Vampire Knight wins the game', () => {
+    const base = atEncounter(2)
+    const s = { ...base, enemies: [{ ...base.enemies[0], hp: 1, step: 1 }] }
+    const next = resolveTurn(s, allTo(s, 'mace'), 0, zero)
+    expect(next.status).toBe('won')
+    expect(next.hp).toBe(30)
+  })
+})
