@@ -1,21 +1,24 @@
 import { ENCOUNTERS, PLAYER } from './content'
 
-export type Sides = 6 | 20
+export type Sides = 4 | 6 | 8 | 10 | 12 | 20
 export type Slot = 'mace' | 'shield' | 'miracle'
 export type Rng = () => number
 export type Allocation = Record<number, Slot | undefined>
+export type Weights = Record<string, number>
 
 export interface Die { id: number; sides: Sides }
-export interface Intent { name: string; attack: Sides[]; shield: Sides[]; lifesteal?: boolean }
-export interface EnemyDef { name: string; hp: number; pattern: Intent[] }
-export interface Enemy extends EnemyDef { id: number; maxHp: number; step: number }
+export interface Pool { bag: Die[]; discard: Die[]; hand: Die[] }
 
-export interface GameState {
+/** HP fractions (0..1) the Markov transitions may look at */
+export interface Ctx { self: number; player: number }
+/** A move sends the `shield` largest dice of the hand to Shield, the rest to Attack */
+export interface Move { shield: number; lifesteal?: boolean; next: (c: Ctx) => Weights }
+export interface EnemyDef { name: string; hp: number; dice: Sides[]; handSize: number; opening: Weights; moves: Record<string, Move> }
+export interface Enemy extends Pool { id: number; name: string; hp: number; maxHp: number; handSize: number; moves: Record<string, Move>; move: string }
+
+export interface GameState extends Pool {
   hp: number
   maxHp: number
-  bag: Die[]
-  discard: Die[]
-  hand: Die[]
   enemies: Enemy[]
   encounter: number
   log: string[]
@@ -24,13 +27,24 @@ export interface GameState {
 
 export const roll = (sides: number, rng: Rng) => Math.floor(rng() * sides) + 1
 export const alive = (e: Enemy) => e.hp > 0
-export const currentIntent = (e: Enemy) => e.pattern[e.step % e.pattern.length]
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
-export function drawHand(state: GameState, rng: Rng): GameState {
-  let bag = [...state.bag]
-  let discard = [...state.discard]
+export function pickWeighted(weights: Weights, rng: Rng): string {
+  const entries = Object.entries(weights).filter(([, w]) => w > 0)
+  let r = rng() * sum(entries.map(([, w]) => w))
+  for (const [key, w] of entries) {
+    if (r < w) return key
+    r -= w
+  }
+  return entries[entries.length - 1][0]
+}
+
+/** Draw `n` dice into an empty hand, reshuffling the discard pile into the bag when needed */
+export function draw(pool: Pool, n: number, rng: Rng): Pool {
+  let bag = [...pool.bag]
+  let discard = [...pool.discard]
   const hand: Die[] = []
-  while (hand.length < PLAYER.handSize) {
+  while (hand.length < n) {
     if (bag.length === 0) {
       if (discard.length === 0) break
       bag = discard
@@ -38,25 +52,45 @@ export function drawHand(state: GameState, rng: Rng): GameState {
     }
     hand.push(...bag.splice(Math.floor(rng() * bag.length), 1))
   }
-  return { ...state, bag, discard, hand }
+  return { bag, discard, hand }
 }
 
-export function loadEncounter(state: GameState, encounter: number): GameState {
-  const enemies = ENCOUNTERS[encounter].map((def, id) => ({ ...def, id, maxHp: def.hp, step: 0 }))
+export function enemyAllocation(e: Enemy): { attack: Die[]; shield: Die[] } {
+  const bySize = [...e.hand].sort((a, b) => b.sides - a.sides)
+  const shield = bySize.slice(0, e.moves[e.move].shield)
+  return { shield, attack: e.hand.filter(d => !shield.includes(d)) }
+}
+
+const ctxOf = (e: Enemy, state: { hp: number; maxHp: number }): Ctx => ({ self: e.hp / e.maxHp, player: state.hp / state.maxHp })
+
+/** End-of-turn upkeep for one enemy: discard hand, pick next move, draw */
+function refreshEnemy(e: Enemy, weights: Weights, rng: Rng): Enemy {
+  const move = pickWeighted(weights, rng)
+  return { ...e, move, ...draw({ bag: e.bag, discard: [...e.discard, ...e.hand], hand: [] }, e.handSize, rng) }
+}
+
+export function loadEncounter(state: GameState, encounter: number, rng: Rng): GameState {
+  const enemies = ENCOUNTERS[encounter].map((def, id) => {
+    const base: Enemy = {
+      id, name: def.name, hp: def.hp, maxHp: def.hp, handSize: def.handSize, moves: def.moves, move: '',
+      bag: def.dice.map((sides, i) => ({ id: i, sides })), discard: [], hand: [],
+    }
+    return refreshEnemy(base, def.opening, rng)
+  })
   const bag = PLAYER.bag.map((sides, id) => ({ id, sides }))
   const log = [...state.log, `--- Encounter ${encounter + 1}: ${enemies.map(e => e.name).join(', ')} ---`]
   return { ...state, encounter, enemies, bag, discard: [], hand: [], log }
 }
 
-export function newGame(rng: Rng): GameState {
+const drawPlayer = (state: GameState, rng: Rng): GameState => ({ ...state, ...draw(state, PLAYER.handSize, rng) })
+
+export function newGame(rng: Rng, encounter = 0): GameState {
   const empty: GameState = {
     hp: PLAYER.hp, maxHp: PLAYER.hp, bag: [], discard: [], hand: [],
     enemies: [], encounter: 0, log: [], status: 'playing',
   }
-  return drawHand(loadEncounter(empty, 0), rng)
+  return drawPlayer(loadEncounter(empty, encounter, rng), rng)
 }
-
-const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
 export function resolveTurn(state: GameState, allocation: Allocation, targetId: number, rng: Rng): GameState {
   if (state.status !== 'playing') return state
@@ -81,9 +115,10 @@ export function resolveTurn(state: GameState, allocation: Allocation, targetId: 
   // Enemy rolls (attack dice, then shield dice, per living enemy in order)
   const rolls = new Map(
     state.enemies.filter(alive).map(e => {
-      const intent = currentIntent(e)
-      const attack = sum(intent.attack.map(s => roll(s, rng)))
-      const shield = sum(intent.shield.map(s => roll(s, rng)))
+      const a = enemyAllocation(e)
+      const attack = sum(a.attack.map(d => roll(d.sides, rng)))
+      const shield = sum(a.shield.map(d => roll(d.sides, rng)))
+      log.push(`${e.name} (${e.move}) rolls Attack ${attack}, Shield ${shield}`)
       return [e.id, { attack, shield }]
     }),
   )
@@ -113,9 +148,9 @@ export function resolveTurn(state: GameState, allocation: Allocation, targetId: 
   enemies = enemies.map(e => {
     if (!alive(e)) return e
     // ponytail: lifesteal heals the full damage taken; fine while the only lifestealer fights alone
-    const drained = currentIntent(e).lifesteal ? Math.min(e.maxHp - e.hp, taken) : 0
+    const drained = e.moves[e.move].lifesteal ? Math.min(e.maxHp - e.hp, taken) : 0
     if (drained > 0) log.push(`${e.name} drains ${drained} HP`)
-    return { ...e, hp: e.hp + drained, step: e.step + 1 }
+    return { ...e, hp: e.hp + drained }
   })
 
   const next: GameState = { ...state, hp, enemies, log, discard: [...state.discard, ...state.hand], hand: [] }
@@ -124,7 +159,9 @@ export function resolveTurn(state: GameState, allocation: Allocation, targetId: 
     if (state.encounter + 1 >= ENCOUNTERS.length) {
       return { ...next, status: 'won', log: [...log, 'The castle falls silent. You win.'] }
     }
-    return drawHand(loadEncounter(next, state.encounter + 1), rng)
+    return drawPlayer(loadEncounter(next, state.encounter + 1, rng), rng)
   }
-  return drawHand(next, rng)
+  // Upkeep: survivors pick their next move and draw, then the player draws
+  const upkept = enemies.map(e => (alive(e) ? refreshEnemy(e, e.moves[e.move].next(ctxOf(e, next)), rng) : e))
+  return drawPlayer({ ...next, enemies: upkept }, rng)
 }
