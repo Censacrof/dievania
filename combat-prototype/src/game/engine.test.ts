@@ -22,6 +22,7 @@ describe('newGame', () => {
     expect(s.hand.map(x => x.id)).toEqual([0, 1, 2, 3])
     expect(sides(s.bag)).toEqual([6, 6, 20, 20])
     expect(s.enemies.map(e => [e.name, e.hp, e.block])).toEqual([['Slime', 26, 0]])
+    expect(s.enemies[0].sprite).toBe('slime.png')
     expect(s.status).toBe('playing')
   })
 

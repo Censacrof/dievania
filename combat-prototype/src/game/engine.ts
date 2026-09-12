@@ -13,6 +13,8 @@ export interface Pool { bag: Die[]; discard: Die[]; hand: Die[] }
 export interface Ctx { self: number; player: number; block: number }
 export interface EnemyDef {
   name: string
+  /** image under public/ */
+  sprite: string
   hp: number
   dice: Sides[]
   handSize: number
@@ -23,6 +25,7 @@ export interface EnemyDef {
 export interface Enemy extends Pool {
   id: number
   name: string
+  sprite: string
   hp: number
   maxHp: number
   block: number
@@ -82,7 +85,7 @@ const ctxOf = (e: Enemy, state: GameState): Ctx => ({ self: e.hp / e.maxHp, play
 
 export function loadEncounter(state: GameState, encounter: number, rng: Rng): GameState {
   const enemies = ENCOUNTERS[encounter].map((def, id): Enemy => ({
-    id, name: def.name, hp: def.hp, maxHp: def.hp, block: 0, handSize: def.handSize, chain: def.chain,
+    id, name: def.name, sprite: def.sprite, hp: def.hp, maxHp: def.hp, block: 0, handSize: def.handSize, chain: def.chain,
     nextAction: pickWeighted(def.opening, rng),
     ...draw({ bag: def.dice.map((sides, i) => ({ id: i, sides })), discard: [], hand: [] }, def.handSize, rng),
   }))

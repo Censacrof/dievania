@@ -43,6 +43,7 @@ export default function App() {
             disabled={!alive(e)}
             onClick={() => setPicked(e.id)}
           >
+            <img src={e.sprite} alt="" />
             <strong>{e.name}</strong>
             <span>HP {e.hp}/{e.maxHp} · Block {e.block}</span>
             <span className="enemy-hand">

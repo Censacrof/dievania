@@ -4,6 +4,7 @@ export const PLAYER = { hp: 30, handSize: 4, bag: [6, 6, 6, 6, 6, 6, 20, 20] as 
 
 const SLIME: EnemyDef = {
   name: 'Slime',
+  sprite: 'slime.png',
   hp: 26,
   dice: [8, 8, 6, 6],
   handSize: 2,
@@ -17,6 +18,7 @@ const SLIME: EnemyDef = {
 
 const BAT: EnemyDef = {
   name: 'Bat',
+  sprite: 'bat.png',
   hp: 10,
   dice: [4, 8, 8],
   handSize: 2,
@@ -30,6 +32,7 @@ const BAT: EnemyDef = {
 
 const VAMPIRE_KNIGHT: EnemyDef = {
   name: 'Vampire Knight',
+  sprite: 'vampire-knight.png',
   hp: 40,
   dice: [6, 6, 8, 12, 20, 20],
   handSize: 3,
