@@ -1,16 +1,23 @@
 import { useState } from 'react'
-import { type Allocation, type Intent, type Slot, alive, currentIntent, newGame, resolveTurn } from './game/engine'
+import { type Allocation, type Die, type Enemy, type Slot, alive, enemyAllocation, newGame, resolveTurn } from './game/engine'
 import './App.css'
 
 const SLOTS: Slot[] = ['mace', 'shield', 'miracle']
 const nextSlot = (slot?: Slot): Slot => (slot ? SLOTS[(SLOTS.indexOf(slot) + 1) % SLOTS.length] : SLOTS[0])
+const list = (dice: Die[]) => (dice.length ? dice.map(d => `d${d.sides}`).join(' ') : '—')
 
-// ponytail: assumes every die in an intent group has the same sides
-const dice = (sides: number[]) => (sides.length ? `${sides.length}d${sides[0]}` : null)
-const describe = (i: Intent) =>
-  [dice(i.attack) && `${dice(i.attack)} Attack`, dice(i.shield) && `${dice(i.shield)} Shield`, i.lifesteal && 'Drain']
-    .filter(Boolean)
-    .join(' + ')
+function Intent({ enemy }: { enemy: Enemy }) {
+  const a = enemyAllocation(enemy)
+  const move = enemy.moves[enemy.move]
+  return (
+    <div className="intent">
+      <strong>{enemy.move}</strong>
+      {a.attack.length > 0 && <span className="atk">{list(a.attack)} → Attack</span>}
+      {a.shield.length > 0 && <span className="shd">{list(a.shield)} → Shield</span>}
+      {move.lifesteal && <span className="drain">drains damage dealt</span>}
+    </div>
+  )
+}
 
 export default function App() {
   const [game, setGame] = useState(() => newGame(Math.random))
@@ -29,7 +36,7 @@ export default function App() {
     <main>
       <header>
         <h1>Cleric · HP {game.hp}/{game.maxHp}</h1>
-        <span>Bag {game.bag.length} · Discard {game.discard.length} · Encounter {game.encounter + 1}/3</span>
+        <span>Encounter {game.encounter + 1}/3</span>
       </header>
 
       <section className="enemies">
@@ -42,13 +49,8 @@ export default function App() {
           >
             <strong>{e.name}</strong>
             <span>HP {e.hp}/{e.maxHp}</span>
-            <ol>
-              {e.pattern.map((intent, i) => (
-                <li key={i} className={intent === currentIntent(e) ? 'current' : ''}>
-                  {intent.name}: {describe(intent)}
-                </li>
-              ))}
-            </ol>
+            {alive(e) && <Intent enemy={e} />}
+            <small>Bag: {list(e.bag)} · Discard: {list(e.discard)}</small>
           </button>
         ))}
       </section>
@@ -66,6 +68,7 @@ export default function App() {
         ))}
         <button className="roll" disabled={!ready} onClick={rollDice}>Roll</button>
       </section>
+      <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
 
       {game.status !== 'playing' && (
         <section className="banner">

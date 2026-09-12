@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  type Allocation, type GameState, type Rng, type Slot,
+  type Allocation, type GameState, type Pool, type Rng, type Slot,
   draw, enemyAllocation, loadEncounter, newGame, pickWeighted, resolveTurn,
 } from './engine'
 import { ENCOUNTERS } from './content'
@@ -22,7 +22,7 @@ describe('newGame', () => {
     expect(s.hand).toHaveLength(4)
     expect(s.bag).toHaveLength(4)
     expect(s.discard).toHaveLength(0)
-    expect(s.enemies.map(e => [e.name, e.hp])).toEqual([['Slime', 20]])
+    expect(s.enemies.map(e => [e.name, e.hp])).toEqual([['Slime', 26]])
     expect(s.status).toBe('playing')
   })
 
@@ -43,7 +43,7 @@ describe('newGame', () => {
 
 describe('draw', () => {
   it('reshuffles the discard pile into the bag when the bag runs out', () => {
-    let p = { bag: [{ id: 0, sides: 6 as const }, { id: 1, sides: 8 as const }], discard: [{ id: 2, sides: 4 as const }], hand: [] }
+    let p: Pool = { bag: [{ id: 0, sides: 6 }, { id: 1, sides: 8 }], discard: [{ id: 2, sides: 4 }], hand: [] }
     p = draw(p, 2, zero)
     expect(p.hand.map(d => d.id)).toEqual([0, 1])
     expect(p.bag).toHaveLength(0)
@@ -92,7 +92,7 @@ describe('resolveTurn vs Slime', () => {
   it('Mace minus enemy Shield; the Slime attacks back minus player Shield', () => {
     const s = newGame(zero) // hand: 4×d6
     const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(1, 6), f(1, 6), f(1, 6), f(1, 6), f(3, 8), f(2, 8)))
-    expect(next.enemies[0].hp).toBe(18)
+    expect(next.enemies[0].hp).toBe(24)
     expect(next.hp).toBe(27)
     expect(next.hand).toHaveLength(4)
     expect(next.discard.map(d => d.id)).toEqual([0, 1, 2, 3])
@@ -171,7 +171,7 @@ describe('encounter flow', () => {
     const s = atEncounter(1) // both Swoop with [d4, d8] → all attack
     // player 4×6 on bat 0; bat 0 rolls 1+1, bat 1 rolls 2+3
     const next = resolveTurn(s, allTo(s, 'mace'), 0, q(f(6, 6), f(6, 6), f(6, 6), f(6, 6), f(1, 4), f(1, 8), f(2, 4), f(3, 8)))
-    expect(next.enemies.map(e => e.hp)).toEqual([0, 8])
+    expect(next.enemies.map(e => e.hp)).toEqual([0, 10])
     expect(next.hp).toBe(25)
     expect(next.encounter).toBe(1)
   })

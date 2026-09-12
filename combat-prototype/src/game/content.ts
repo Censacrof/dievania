@@ -4,7 +4,7 @@ export const PLAYER = { hp: 30, handSize: 4, bag: [6, 6, 6, 6, 6, 6, 20, 20] as 
 
 const SLIME: EnemyDef = {
   name: 'Slime',
-  hp: 20,
+  hp: 26,
   dice: [8, 8, 6, 6],
   handSize: 2,
   opening: { Ooze: 1, Splash: 1 },
@@ -17,7 +17,7 @@ const SLIME: EnemyDef = {
 
 const BAT: EnemyDef = {
   name: 'Bat',
-  hp: 8,
+  hp: 10,
   dice: [4, 8, 8],
   handSize: 2,
   opening: { Swoop: 1 },
