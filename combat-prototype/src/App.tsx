@@ -1,42 +1,38 @@
-import { useState } from 'react'
-import { type Allocation, type Die, type Enemy, type Slot, alive, enemyAllocation, newGame, resolveTurn } from './game/engine'
+import { useEffect, useState } from 'react'
+import { type Die, type PlayerAction, alive, enemyStep, newGame, playerAction } from './game/engine'
 import './App.css'
 
-const SLOTS: Slot[] = ['mace', 'shield', 'miracle']
-const nextSlot = (slot?: Slot): Slot => (slot ? SLOTS[(SLOTS.indexOf(slot) + 1) % SLOTS.length] : SLOTS[0])
+const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
+const ENEMY_STEP_MS = 900
 const list = (dice: Die[]) => (dice.length ? dice.map(d => `d${d.sides}`).join(' ') : '—')
-
-function Intent({ enemy }: { enemy: Enemy }) {
-  const a = enemyAllocation(enemy)
-  const move = enemy.moves[enemy.move]
-  return (
-    <div className="intent">
-      <strong>{enemy.move}</strong>
-      {a.attack.length > 0 && <span className="atk">{list(a.attack)} → Attack</span>}
-      {a.shield.length > 0 && <span className="shd">{list(a.shield)} → Shield</span>}
-      {move.lifesteal && <span className="drain">drains damage dealt</span>}
-    </div>
-  )
-}
 
 export default function App() {
   const [game, setGame] = useState(() => newGame(Math.random))
-  const [allocation, setAllocation] = useState<Allocation>({})
+  const [action, setAction] = useState<PlayerAction | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
 
   const living = game.enemies.filter(alive)
-  const targetId = living.length === 1 ? living[0].id : picked
-  const ready = game.status === 'playing' && targetId !== null && game.hand.every(d => allocation[d.id])
+  const targetId = living.some(e => e.id === picked) ? picked! : living[0]?.id
+  const playing = game.status === 'playing' && game.phase === 'player'
 
-  const reset = () => { setAllocation({}); setPicked(null) }
-  const rollDice = () => { setGame(resolveTurn(game, allocation, targetId!, Math.random)); reset() }
-  const restart = () => { setGame(newGame(Math.random)); reset() }
+  // Enemy turn plays back one action at a time
+  useEffect(() => {
+    if (game.status !== 'playing' || game.phase !== 'enemy') return
+    const t = setTimeout(() => setGame(g => enemyStep(g, Math.random)), ENEMY_STEP_MS)
+    return () => clearTimeout(t)
+  }, [game])
+
+  const spendDie = (dieId: number) => {
+    if (!action) return
+    setGame(playerAction(game, action, dieId, targetId, Math.random))
+  }
+  const restart = () => { setGame(newGame(Math.random)); setAction(null); setPicked(null) }
 
   return (
     <main>
       <header>
-        <h1>Cleric · HP {game.hp}/{game.maxHp}</h1>
-        <span>Encounter {game.encounter + 1}/3</span>
+        <h1>Cleric · HP {game.hp}/{game.maxHp} · Block {game.block}</h1>
+        <span>Encounter {game.encounter + 1}/3 · {game.phase === 'player' ? 'Your turn' : 'Enemy turn'}</span>
       </header>
 
       <section className="enemies">
@@ -48,8 +44,11 @@ export default function App() {
             onClick={() => setPicked(e.id)}
           >
             <strong>{e.name}</strong>
-            <span>HP {e.hp}/{e.maxHp}</span>
-            {alive(e) && <Intent enemy={e} />}
+            <span>HP {e.hp}/{e.maxHp} · Block {e.block}</span>
+            <span className="enemy-hand">
+              {e.hand.map((d, i) => <em key={d.id} className={i === 0 ? 'next' : ''}>d{d.sides}</em>)}
+            </span>
+            {alive(e) && e.hand.length > 0 && <span className={`next-action ${e.nextAction}`}>Next: {e.nextAction} with d{e.hand[0].sides}</span>}
             <small>Bag: {list(e.bag)} · Discard: {list(e.discard)}</small>
           </button>
         ))}
@@ -57,16 +56,18 @@ export default function App() {
 
       <section className="hand">
         {game.hand.map(d => (
-          <button
-            key={d.id}
-            className={`die ${allocation[d.id] ?? ''}`}
-            onClick={() => setAllocation({ ...allocation, [d.id]: nextSlot(allocation[d.id]) })}
-          >
+          <button key={d.id} className={`die ${action ?? ''}`} disabled={!playing || !action} onClick={() => spendDie(d.id)}>
             <strong>d{d.sides}</strong>
-            <span>{allocation[d.id] ?? 'assign'}</span>
           </button>
         ))}
-        <button className="roll" disabled={!ready} onClick={rollDice}>Roll</button>
+      </section>
+      <section className="actions">
+        {ACTIONS.map(a => (
+          <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => setAction(a)}>
+            {a}
+          </button>
+        ))}
+        <small>{action ? `Pick a die to ${action}` : 'Pick an action, then a die'}</small>
       </section>
       <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
 
