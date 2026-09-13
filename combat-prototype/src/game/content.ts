@@ -97,6 +97,7 @@ const SPECIAL: Record<number, Cell> = { 3: 'fortune', 6: 'critical', 10: 'grace'
 export const BOARD: Cell[] = Array.from({ length: 24 }, (_, i) => SPECIAL[i] ?? 'blank')
 
 export const CELL_NAME: Record<Cell, string> = { blank: 'Blank', critical: 'Critical', bastion: 'Bastion', grace: 'Grace', fortune: 'Fortune', cursed: 'Cursed' }
+export const CELL_MARK: Record<Cell, string> = { blank: '', critical: '×2', bastion: 'B', grace: 'G', fortune: 'F', cursed: '½' }
 export const CELL_TEXT: Record<Cell, string> = {
   blank: 'Nothing happens.',
   critical: 'Mace damage is doubled for the action that lands here.',

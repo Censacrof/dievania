@@ -18,9 +18,11 @@ button:disabled { cursor: not-allowed; }
 .next-action.attack, .next-action.bite { color: #e87; }
 .next-action.shield { color: #7ae; }
 
-.player { display: grid; grid-template-columns: 128px 1fr; column-gap: .75rem; background: #161a1e; border: 2px solid #2a343d; border-radius: 8px; padding: .75rem; }
+.player { display: grid; grid-template-columns: 128px 1fr 250px; column-gap: .75rem; background: #161a1e; border: 2px solid #2a343d; border-radius: 8px; padding: .75rem; }
 .player.active { border-color: #4a7a9a; }
-.player img { width: 128px; height: 128px; image-rendering: pixelated; align-self: start; }
+.player > img { grid-column: 1; width: 128px; height: 128px; image-rendering: pixelated; align-self: start; }
+.player-info { grid-column: 2; }
+.player .board { grid-column: 3; grid-row: 1; }
 .player-info { display: grid; gap: .5rem; align-content: start; }
 .player-info > small { color: #998; }
 .hand { display: flex; gap: .75rem; flex-wrap: wrap; min-height: 84px; }
@@ -89,6 +91,9 @@ button:disabled { cursor: not-allowed; }
   .enemy { grid-template-columns: 80px 1fr; column-gap: .6rem; padding: .6rem; }
   .enemy img { width: 80px; height: 80px; }
   .player { grid-template-columns: 1fr; padding: .6rem; row-gap: .5rem; }
+  .player > img, .player-info, .player .board { grid-column: 1; grid-row: auto; }
+  .board { width: 230px; height: 230px; }
+  .cell { transform: rotate(var(--a)) translate(100px) rotate(calc(-1 * var(--a))); }
   .player > img { width: 72px; height: 72px; }
   .die { width: 60px; height: 60px; font-size: 1rem; }
   .confirm { flex: 1 1 100%; margin-left: 0; padding: .6rem; }
@@ -110,14 +115,20 @@ button:disabled { cursor: not-allowed; }
   }
 }
 
-/* The board: 24 cells, token on the current one */
-.board { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
-.cell { position: relative; aspect-ratio: 1; display: grid; place-content: center; border-radius: 4px; background: #262230; font-size: .7rem; font-weight: bold; color: #eee; cursor: help; }
+/* The board as a clock face */
+.board { position: relative; width: 250px; height: 250px; align-self: start; justify-self: center; }
+.cell {
+  position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px;
+  transform: rotate(var(--a)) translate(110px) rotate(calc(-1 * var(--a)));
+  display: grid; place-content: center; border-radius: 6px; background: #262230;
+  font-size: .7rem; font-weight: bold; color: #eee; cursor: help;
+}
 .cell.critical { background: #7a2a2a; }
 .cell.bastion { background: #2a4a7a; }
 .cell.grace { background: #7a6a2a; }
 .cell.fortune { background: #2a6a4a; }
 .cell.cursed { background: #4a2a5a; }
-.cell.here { outline: 2px solid #fff; }
+.cell.here { outline: 2px solid #fff; z-index: 1; }
 .cell img { width: 100%; height: 100%; image-rendering: pixelated; }
-@media (max-width: 640px) { .board { grid-template-columns: repeat(12, 1fr); } }
+.board .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; color: #998; }
+.board .center strong { font-size: 1.6rem; color: #e8e2e8; }

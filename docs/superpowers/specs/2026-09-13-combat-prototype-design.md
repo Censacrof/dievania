@@ -223,10 +223,11 @@ Single component, `useState<GameState>`. English only.
   player phase; clicking toggles selection. A Confirm button resolves the
   action with the selected dice.
 - Trinket row: Rosary Beads icon, name and rule text.
-- Board: a strip of 24 small cells under the player's HP bar (two rows of 12
-  on phones). Special cells have a color and a one-letter mark, blanks are dim;
-  the current cell shows the token. Every cell, blank included, explains its
-  effect on hover or tap.
+- Board: a clock face of 24 cells (cell 0 at twelve, clockwise) as the third
+  column of the player card, centered under the info on phones. Special cells
+  have a color and a mark (×2, ½, B, G, F), blanks are dim; the current cell
+  shows the token and the center shows its index and name. Every cell, blank
+  included, explains its effect on hover or tap.
 - Action row: Mace, Shield, Miracle, Skip, with the equipment icons
   (`mace.png`, `shield.png`, `reliq.png`). The selected action stays
   selected until changed, so repeated actions need one click per die.

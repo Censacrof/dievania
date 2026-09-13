@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import { type Die, type GameState, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
-import { ACTION_TEXT, CELL_NAME, CELL_TEXT, ENCHANT_TEXT, ENCOUNTERS, PERK_TEXT, PLAYER, headerText, offerTip } from './game/content'
+import { ACTION_TEXT, CELL_MARK, CELL_NAME, CELL_TEXT, ENCHANT_TEXT, ENCOUNTERS, PERK_TEXT, PLAYER, headerText, offerTip } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
@@ -9,6 +9,26 @@ const ICONS: Partial<Record<PlayerAction, string>> = { mace: 'mace.png', shield:
 const ENEMY_STEP_MS = 900
 const label = (d: Die) => `d${d.sides}${d.enchant ? `·${d.enchant}` : ''}`
 const list = (dice: Die[]) => (dice.length ? dice.map(label).join(' ') : '—')
+/** The board as a clock face: cell 0 at twelve, clockwise */
+const Clock = ({ board, position }: { board: GameState['board']; position: number }) => (
+  <div className="board" aria-label="Board">
+    {board.map((cell, i) => (
+      <span
+        key={i}
+        className={`cell ${cell}${i === position ? ' here' : ''}`}
+        style={{ '--a': `${(360 / board.length) * i - 90}deg` } as CSSProperties}
+        data-tip={`${i}. ${CELL_NAME[cell]}: ${CELL_TEXT[cell]}`}
+        tabIndex={0}
+      >
+        {i === position ? <img src={PLAYER.sprite} alt="" /> : CELL_MARK[cell]}
+      </span>
+    ))}
+    <span className="center">
+      <strong>{position}</strong>
+      <small>{CELL_NAME[board[position]]}</small>
+    </span>
+  </div>
+)
 const Bar = ({ value, max }: { value: number; max: number }) => (
   <span className="bar"><span style={{ width: `${(100 * value) / max}%` }} /></span>
 )
@@ -104,22 +124,11 @@ export default function App({ initial }: { initial?: GameState } = {}) {
 
       <section className={`player ${playing ? 'active' : ''}`}>
         <img src={PLAYER.sprite} alt="" />
+        <Clock board={game.board} position={game.position} />
         <div className="player-info">
           <strong>{PLAYER.name}</strong>
           <span>HP {game.hp}/{game.maxHp} · Block {game.block}{game.sturdyBlock ? ` (+${game.sturdyBlock} sturdy)` : ''}</span>
           <Bar value={game.hp} max={game.maxHp} />
-          <div className="board">
-            {game.board.map((cell, i) => (
-              <span
-                key={i}
-                className={`cell ${cell}${i === game.position ? ' here' : ''}`}
-                data-tip={`${i}. ${CELL_NAME[cell]}: ${CELL_TEXT[cell]}`}
-                tabIndex={0}
-              >
-                {i === game.position ? <img src={PLAYER.sprite} alt="" /> : cell === 'blank' ? '' : CELL_NAME[cell][0]}
-              </span>
-            ))}
-          </div>
           {rewarding ? (
             <>
               <div className="hand">
