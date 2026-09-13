@@ -1,10 +1,11 @@
-import { ENCOUNTERS, PLAYER, ROSARY } from './content'
+import { BOARD, CELL_NAME, ENCOUNTERS, PLAYER, ROSARY } from './content'
 
 export type Sides = 4 | 6 | 8 | 10 | 12 | 20
 export type PlayerAction = 'mace' | 'shield' | 'miracle' | 'skip'
 export type EnemyAction = 'attack' | 'shield' | 'bite'
 export type Enchant = 'heavy' | 'sturdy' | 'holy' | 'lucky' | 'piercing' | 'echo'
 export type Perk = 'steadyHands' | 'overkill'
+export type Cell = 'blank' | 'critical' | 'bastion' | 'grace' | 'fortune' | 'cursed'
 export type Rng = () => number
 export type Weights<K extends string = EnemyAction> = Partial<Record<K, number>>
 
@@ -62,6 +63,9 @@ export interface GameState extends Pool {
   nextDieId: number
   handSize: number
   perks: Perk[]
+  /** the board loop and the player's token on it; position persists across fights */
+  board: Cell[]
+  position: number
   enemies: Enemy[]
   encounter: number
   phase: 'player' | 'enemy' | 'reward'
@@ -72,6 +76,7 @@ export interface GameState extends Pool {
 
 export const roll = (sides: number, rng: Rng) => Math.floor(rng() * sides) + 1
 export const alive = (e: Enemy) => e.hp > 0
+export const advance = (position: number, steps: number, size: number) => (position + steps) % size
 
 export function pickWeighted<K extends string>(weights: Weights<K>, rng: Rng): K {
   const entries = (Object.entries(weights) as [K, number][]).filter(([, w]) => w > 0)
@@ -139,7 +144,7 @@ export function newGame(rng: Rng, encounter = 0): GameState {
   const dice = PLAYER.bag.map((sides, id) => ({ id, sides }))
   const empty: GameState = {
     hp: PLAYER.hp, maxHp: PLAYER.hp, block: 0, sturdyBlock: 0, bag: [], discard: [], hand: [],
-    dice, nextDieId: dice.length, handSize: PLAYER.handSize, perks: [],
+    dice, nextDieId: dice.length, handSize: PLAYER.handSize, perks: [], board: [...BOARD], position: 0,
     enemies: [], encounter: 0, phase: 'player', offers: [], log: [], status: 'playing',
   }
   return loadEncounter(empty, encounter, rng)
@@ -254,6 +259,12 @@ export function playerAction(state: GameState, action: PlayerAction, dieIds: num
   const part = (enchant: Enchant) => sum(faces.filter((_, i) => dice[i].enchant === enchant))
   const count = (enchant: Enchant) => dice.filter(d => d.enchant === enchant).length
   const text = plural(dice, faces, total) + (rerolled ? ' (Lucky reroll)' : '')
+
+  // Move the token; the landed cell modifies this action
+  const position = action === 'skip' ? state.position : advance(state.position, total, state.board.length)
+  const cell: Cell = action === 'skip' ? 'blank' : state.board[position]
+  next = { ...next, position }
+  if (action !== 'skip') log.push(`You move ${total} → ${cell === 'blank' ? `cell ${position}` : `${CELL_NAME[cell]}!`}`)
 
   if (action === 'mace') {
     const heavy = 2 * count('heavy')

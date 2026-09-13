@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { type Die, type GameState, type Pool, type Rng, chooseReward, draw, enemyStep, loadEncounter, newGame, pickWeighted, playerAction, rollOffers } from './engine'
-import { ENCOUNTERS } from './content'
+import { type Die, type GameState, type Pool, type Rng, advance, chooseReward, draw, enemyStep, loadEncounter, newGame, pickWeighted, playerAction, rollOffers } from './engine'
+import { BOARD, ENCOUNTERS } from './content'
 
 /** rng value that makes `roll(sides)` return exactly `face` */
 const f = (face: number, sides: number) => (face - 0.5) / sides
@@ -474,5 +474,37 @@ describe('enemy multi-die actions', () => {
     const next = enemyStep(s, q(0, 0, 0.99)) // slime draws 2, then picks its count
     expect(next.phase).toBe('player')
     expect(next.enemies[0].nextCount).toBe(2)
+  })
+})
+
+describe('board', () => {
+  it('has 24 cells with the fixed layout and the token on Start', () => {
+    const s = newGame(zero)
+    expect(s.board).toHaveLength(24)
+    expect(s.position).toBe(0)
+    expect(s.board.map((c, i) => (c === 'blank' ? null : `${i}:${c}`)).filter(Boolean)).toEqual(
+      ['3:fortune', '6:critical', '10:grace', '13:cursed', '16:bastion', '19:critical', '22:fortune'],
+    )
+    expect(BOARD).toEqual(s.board)
+  })
+
+  it('advance wraps around the loop', () => {
+    expect(advance(20, 9, 24)).toBe(5)
+    expect(advance(0, 24, 24)).toBe(0)
+  })
+
+  it('a rolling action moves the token by the total and logs the move; Skip does not move', () => {
+    const s = newGame(zero)
+    const moved = playerAction(s, 'mace', [0, 1], 0, q(f(4, 6), f(5, 6)))
+    expect(moved.position).toBe(9)
+    expect(moved.log).toContain('You move 9 → cell 9')
+    expect(playerAction(s, 'skip', [0], 0, zero).position).toBe(0)
+  })
+
+  it('the position survives an encounter change', () => {
+    const base = { ...newGame(zero), position: 20 }
+    const cleared = playerAction({ ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }, 'mace', [0], 0, q(f(1, 6)))
+    expect(cleared.position).toBe(21)
+    expect(chooseReward(cleared, null, undefined, zero).position).toBe(21)
   })
 })

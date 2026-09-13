@@ -1,4 +1,4 @@
-import type { Enchant, EnemyDef, GameState, Offer, Perk, PlayerAction, Sides } from './engine'
+import type { Cell, Enchant, EnemyDef, GameState, Offer, Perk, PlayerAction, Sides } from './engine'
 
 export const PLAYER = {
   name: 'Cleric',
@@ -89,3 +89,19 @@ export const offerTip = (o: Offer): string =>
 /** Header line: what the player should do now */
 export const headerText = (phase: GameState['phase'], pending: Offer | null): string =>
   pending ? `Pick a die to ${pending.kind}` : { player: 'Your turn', enemy: 'Enemy turn', reward: 'Choose a reward' }[phase]
+
+// ---------------------------------------------------------------------------
+// The board: 24 cells, index 0 = Start. Copied into state so events can alter it.
+
+const SPECIAL: Record<number, Cell> = { 3: 'fortune', 6: 'critical', 10: 'grace', 13: 'cursed', 16: 'bastion', 19: 'critical', 22: 'fortune' }
+export const BOARD: Cell[] = Array.from({ length: 24 }, (_, i) => SPECIAL[i] ?? 'blank')
+
+export const CELL_NAME: Record<Cell, string> = { blank: 'Blank', critical: 'Critical', bastion: 'Bastion', grace: 'Grace', fortune: 'Fortune', cursed: 'Cursed' }
+export const CELL_TEXT: Record<Cell, string> = {
+  blank: 'Nothing happens.',
+  critical: 'Mace damage is doubled for the action that lands here.',
+  bastion: 'Gain 5 Block, whatever the action.',
+  grace: 'Heal 5 HP, whatever the action.',
+  fortune: 'Draw one die into your hand.',
+  cursed: 'The action that lands here has its effect halved.',
+}
