@@ -1,4 +1,4 @@
-import type { EnemyDef, Sides } from './engine'
+import type { Enchant, EnemyDef, Perk, PlayerAction, Sides } from './engine'
 
 export const PLAYER = {
   name: 'Cleric',
@@ -9,6 +9,27 @@ export const PLAYER = {
   trinket: { name: 'Rosary Beads', sprite: 'rosary-beads.png', text: 'Whenever you roll a total of 7, heal 5 HP' },
 }
 export const ROSARY = { total: 7, heal: 5 }
+
+export const ACTION_TEXT: Record<PlayerAction, string> = {
+  mace: 'Roll the selected dice and deal the total as damage to the target. Its Block absorbs damage first.',
+  shield: 'Roll the selected dice and add the total to your Block. Block absorbs damage and expires at the start of your next turn.',
+  miracle: 'Roll the selected dice and heal half the total, rounded down. Cannot exceed max HP.',
+  skip: 'Discard the selected dice without rolling. Nothing happens.',
+}
+
+export const ENCHANT_TEXT: Record<Enchant, string> = {
+  heavy: 'Heavy: +2 damage when this die is used with the Mace.',
+  sturdy: 'Sturdy: Block from this die goes into a separate pool that never expires. Normal Block is spent first.',
+  holy: 'Holy: Miracle heals the full roll of this die instead of half.',
+  lucky: 'Lucky: if this die rolls a 1, it is rerolled once.',
+  piercing: 'Piercing: this die\'s Mace damage ignores the target\'s Block.',
+  echo: 'Echo: after using this die, draw one die from your bag into your hand.',
+}
+
+export const PERK_TEXT: Record<Perk, string> = {
+  steadyHands: 'Steady hands: every fight opens with your two largest dice in hand.',
+  overkill: 'Overkill: when the Mace kills, damage beyond the kill hits the next living enemy, through its Block.',
+}
 
 const SLIME: EnemyDef = {
   name: 'Slime',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { type Die, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
-import { ENCOUNTERS, PLAYER } from './game/content'
+import { ACTION_TEXT, ENCHANT_TEXT, ENCOUNTERS, PERK_TEXT, PLAYER } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
@@ -59,7 +59,12 @@ export default function App() {
       {rewarding ? (
         <section className="rewards">
           {game.offers.map((o, i) => (
-            <button key={i} className={`offer ${pendingOffer === i ? 'selected' : ''}`} onClick={() => pickOffer(i)}>
+            <button
+              key={i}
+              className={`offer ${pendingOffer === i ? 'selected' : ''}`}
+              data-tip={o.kind === 'enchant' ? ENCHANT_TEXT[o.enchant] : o.kind === 'perk' ? PERK_TEXT[o.perk] : undefined}
+              onClick={() => pickOffer(i)}
+            >
               <strong>{o.kind === 'perk' ? o.perk : o.kind}</strong>
               <span>{describeOffer(o)}</span>
             </button>
@@ -106,7 +111,13 @@ export default function App() {
             <>
               <div className="hand">
                 {game.dice.map(d => (
-                  <button key={d.id} className="die" disabled={!offer || !offerAccepts(offer, d)} onClick={() => takeReward(pendingOffer, d.id)}>
+                  <button
+                    key={d.id}
+                    className="die"
+                    data-tip={d.enchant && ENCHANT_TEXT[d.enchant]}
+                    disabled={!offer || !offerAccepts(offer, d)}
+                    onClick={() => takeReward(pendingOffer, d.id)}
+                  >
                     <strong>d{d.sides}</strong>
                     {d.enchant && <small>{d.enchant}</small>}
                   </button>
@@ -124,6 +135,7 @@ export default function App() {
                   <button
                     key={d.id}
                     className={`die ${action ?? ''} ${selected.includes(d.id) ? 'selected' : ''}`}
+                    data-tip={d.enchant && ENCHANT_TEXT[d.enchant]}
                     disabled={!playing || !action}
                     onClick={() => toggleDie(d.id)}
                   >
@@ -135,7 +147,7 @@ export default function App() {
               </div>
               <div className="actions">
                 {ACTIONS.map(a => (
-                  <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => chooseAction(a)}>
+                  <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} data-tip={ACTION_TEXT[a]} disabled={!playing} onClick={() => chooseAction(a)}>
                     {ICONS[a] && <img src={ICONS[a]} alt="" />}
                     <span>{a}</span>
                   </button>
@@ -145,11 +157,14 @@ export default function App() {
               <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
             </>
           )}
-          <span className="trinket" title={PLAYER.trinket.text}>
+          <span className="trinket" data-tip={PLAYER.trinket.text} tabIndex={0}>
             <img src={PLAYER.trinket.sprite} alt="" />
-            <span><strong>{PLAYER.trinket.name}</strong> · {PLAYER.trinket.text}</span>
+            <strong>{PLAYER.trinket.name}</strong>
           </span>
-          <small>Hand size {game.handSize}{game.perks.length ? ` · Perks: ${game.perks.join(', ')}` : ''}</small>
+          <small>
+            Hand size {game.handSize}
+            {game.perks.map(p => <span key={p} className="perk" data-tip={PERK_TEXT[p]} tabIndex={0}> · {p}</span>)}
+          </small>
         </div>
       </section>
 
