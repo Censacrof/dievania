@@ -6,7 +6,7 @@ button:disabled { cursor: not-allowed; }
 
 .enemies { display: flex; gap: 1rem; flex-wrap: wrap; }
 .enemy { flex: 1 1 260px; text-align: left; background: #1e1620; border: 2px solid #3a2a3d; border-radius: 8px; padding: .75rem; display: grid; grid-template-columns: 128px 1fr; grid-auto-rows: min-content; column-gap: .75rem; row-gap: .3rem; align-content: start; }
-.enemy img { grid-row: 1 / span 5; width: 128px; height: 128px; image-rendering: pixelated; align-self: start; }
+.enemy img { grid-row: 1 / span 6; width: 128px; height: 128px; image-rendering: pixelated; align-self: start; }
 .enemy.dead img { filter: grayscale(1); }
 .enemy.target { border-color: #d33; }
 .enemy.dead { opacity: .35; text-decoration: line-through; }
@@ -55,3 +55,8 @@ button:disabled { cursor: not-allowed; }
 .offer.skip strong { color: #ccc; }
 .die { display: grid; place-content: center; gap: .1rem; }
 .die small { font-size: .7rem; color: #ec8; text-transform: capitalize; }
+
+.bar { display: block; height: 10px; background: #2a2a2a; border-radius: 5px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: #c33; transition: width .3s; }
+.player .bar span { background: #4a4; }
+.enemy .bar { grid-column: 2; }

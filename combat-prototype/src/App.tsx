@@ -9,6 +9,9 @@ const ICONS: Partial<Record<PlayerAction, string>> = { mace: 'mace.png', shield:
 const ENEMY_STEP_MS = 900
 const label = (d: Die) => `d${d.sides}${d.enchant ? `·${d.enchant}` : ''}`
 const list = (dice: Die[]) => (dice.length ? dice.map(label).join(' ') : '—')
+const Bar = ({ value, max }: { value: number; max: number }) => (
+  <span className="bar"><span style={{ width: `${(100 * value) / max}%` }} /></span>
+)
 
 export default function App() {
   const [game, setGame] = useState(() => newGame(Math.random))
@@ -74,6 +77,7 @@ export default function App() {
               <img src={e.sprite} alt="" />
               <strong>{e.name}</strong>
               <span>HP {e.hp}/{e.maxHp} · Block {e.block}</span>
+              <Bar value={e.hp} max={e.maxHp} />
               <span className="enemy-hand">
                 {e.hand.map((d, i) => <em key={d.id} className={i === 0 ? 'next' : ''}>d{d.sides}</em>)}
               </span>
@@ -89,6 +93,7 @@ export default function App() {
         <div className="player-info">
           <strong>{PLAYER.name}</strong>
           <span>HP {game.hp}/{game.maxHp} · Block {game.block}{game.sturdyBlock ? ` (+${game.sturdyBlock} sturdy)` : ''}</span>
+          <Bar value={game.hp} max={game.maxHp} />
           {rewarding ? (
             <>
               <div className="hand">
