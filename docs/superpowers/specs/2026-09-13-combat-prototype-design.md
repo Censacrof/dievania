@@ -44,6 +44,39 @@ exactly 7, heal 5 HP. Skip never rolls, so it never triggers it.
 Block expires at the start of the owner's own turn: what you build during
 your turn protects you during the enemy turn, and vice versa.
 
+### The Board
+
+A loop of **24 cells**, index 0 = Start. Only the player has a token; enemies
+never touch the board. The layout is fixed data in `content.ts`, copied into
+`state.board` at game start so future events and rewards can alter cells.
+`state.position` persists for the whole run: it is not reset by
+`loadEncounter`, and it wraps around (passing Start does nothing).
+
+Fixed layout: Fortune 3, Critical 6, Grace 10, Cursed 13, Bastion 16,
+Critical 19, Fortune 22, everything else Blank.
+
+**Movement.** Every player action that rolls dice moves the token by the
+total of the roll, after Lucky rerolls. Skip does not roll and does not move.
+
+**Order inside an action**: roll → move → resolve the action with the landed
+cell's modifier → Rosary check on the total → Echo draws → Fortune draw.
+
+| Cell | Effect |
+|---|---|
+| Blank | nothing |
+| Critical | Mace damage doubled: the whole hit (Heavy included, Piercing part included) is doubled before the target's Block absorbs it |
+| Bastion | +5 Block (normal Block), whatever the action |
+| Grace | heal 5 HP, capped, whatever the action |
+| Fortune | draw one die into the hand (nothing if bag and discard are empty) |
+| Cursed | the action's own effect is halved, rounded down: Mace damage (before Block), Shield Block, or Miracle heal |
+
+Critical does nothing for Shield or Miracle; Bastion and Grace apply even when
+landed with a Mace. Cursed does not touch the Rosary heal or Echo draws.
+
+Log: one line per move, e.g. `You move 9 → Critical!`, before the action line.
+The action line notes `(Critical)` or `(Cursed)` when the modifier changed
+the number.
+
 ### Enemies
 
 Enemies mirror the player: each has a **dice bag, a discard pile and a hand**
@@ -167,6 +200,9 @@ Pure TypeScript, no React imports. All randomness goes through an injected
     skips), then loads the next encounter. Throws out of phase or for an
     ineligible die.
   - `draw(pool, n, rng)`, `pickWeighted(weights, rng)` → shared helpers.
+  - `advance(position, steps, size)` → the new board index (wrapping).
+  - `GameState.board: Cell[]` (copied from `content.BOARD` in `newGame`) and
+    `GameState.position` (0 at start, never reset by `loadEncounter`).
   - rng order: one call per roll, one per draw, one per chain pick, in the
     order the text above describes.
 - Every action appends one human-readable line to `state.log`.
@@ -187,6 +223,10 @@ Single component, `useState<GameState>`. English only.
   player phase; clicking toggles selection. A Confirm button resolves the
   action with the selected dice.
 - Trinket row: Rosary Beads icon, name and rule text.
+- Board: a strip of 24 small cells under the player's HP bar (two rows of 12
+  on phones). Special cells have a color and a one-letter mark, blanks are dim;
+  the current cell shows the token. Every cell, blank included, explains its
+  effect on hover or tap.
 - Action row: Mace, Shield, Miracle, Skip, with the equipment icons
   (`mace.png`, `shield.png`, `reliq.png`). The selected action stays
   selected until changed, so repeated actions need one click per die.
@@ -211,6 +251,9 @@ Vitest, engine only. TDD red → green → refactor. Test cases cover at least:
 - encounter transition, win, chain weights reacting to HP
 - offer rolling and conditions, every reward kind, every enchantment, both
   perks
+- board: wrap-around, Skip does not move, every cell effect, Critical with
+  Heavy and Piercing, Cursed against Block, Grace and Bastion caps, Fortune
+  with an empty bag, position surviving an encounter change
 
 ### Out of scope (first experiments after playtest)
 
