@@ -98,6 +98,8 @@ button:disabled { cursor: not-allowed; }
 .cell.fortune { background: #2a6a4a; }
 .cell.cursed { background: #4a2a5a; }
 .cell.here { outline: 2px solid #fff; z-index: 1; }
+/* transform makes each cell a stacking context: lift the hovered one so its popover paints over the others */
+.cell:hover, .cell:focus-visible, .cell:focus { z-index: 20; }
 .cell img { width: 100%; height: 100%; image-rendering: pixelated; }
 .board .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; color: #998; }
 .board .center strong { font-size: 1.4rem; color: #e8e2e8; }
