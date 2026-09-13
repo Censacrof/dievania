@@ -50,6 +50,7 @@ button:disabled { cursor: not-allowed; }
 .offer { flex: 1 1 180px; text-align: left; background: #1a1a12; border: 2px solid #4a4020; border-radius: 8px; padding: .75rem; display: grid; gap: .3rem; }
 .offer strong { text-transform: capitalize; color: #edc; }
 .offer span { font-size: .9rem; color: #bba; }
+.offer small { font-size: .8rem; color: #887; line-height: 1.3; }
 .offer.selected { border-color: #ec8; background: #2a2412; }
 .offer.skip { border-color: #444; background: #1a1a1a; }
 .offer.skip strong { color: #ccc; }
@@ -80,7 +81,6 @@ button:disabled { cursor: not-allowed; }
 .perk { text-decoration: underline dotted; cursor: help; }
 .trinket { cursor: help; justify-self: start; }
 .offer[data-tip]::after { bottom: auto; top: calc(100% + 8px); }
-.rewards [data-tip]:hover::after, .rewards [data-tip]:focus-visible::after { bottom: auto; top: calc(100% + 8px); }
 
 /* Phones */
 @media (max-width: 640px) {
@@ -108,5 +108,4 @@ button:disabled { cursor: not-allowed; }
     border: 1px solid #444; font-size: .8rem; font-weight: normal; line-height: 1.3; text-align: left; text-transform: none;
     white-space: normal; z-index: 10; pointer-events: none;
   }
-  .rewards [data-tip]:focus::after { bottom: auto; top: calc(100% + 8px); }
 }

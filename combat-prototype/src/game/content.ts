@@ -1,4 +1,4 @@
-import type { Enchant, EnemyDef, Perk, PlayerAction, Sides } from './engine'
+import type { Enchant, EnemyDef, GameState, Offer, Perk, PlayerAction, Sides } from './engine'
 
 export const PLAYER = {
   name: 'Cleric',
@@ -81,3 +81,11 @@ const VAMPIRE_KNIGHT: EnemyDef = {
 }
 
 export const ENCOUNTERS: EnemyDef[][] = [[SLIME], [SLIME, SLIME], [BAT, BAT, SLIME], [VAMPIRE_KNIGHT]]
+
+/** Explanation shown on a reward card */
+export const offerTip = (o: Offer): string =>
+  o.kind === 'enchant' ? ENCHANT_TEXT[o.enchant] : o.kind === 'perk' ? PERK_TEXT[o.perk] : OFFER_TEXT[o.kind]
+
+/** Header line: what the player should do now */
+export const headerText = (phase: GameState['phase'], pending: Offer | null): string =>
+  pending ? `Pick a die to ${pending.kind}` : { player: 'Your turn', enemy: 'Enemy turn', reward: 'Choose a reward' }[phase]

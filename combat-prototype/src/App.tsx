@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { type Die, type Offer, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
-import { ACTION_TEXT, ENCHANT_TEXT, ENCOUNTERS, OFFER_TEXT, PERK_TEXT, PLAYER } from './game/content'
+import { type Die, type GameState, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
+import { ACTION_TEXT, ENCHANT_TEXT, ENCOUNTERS, PERK_TEXT, PLAYER, headerText, offerTip } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
@@ -9,13 +9,12 @@ const ICONS: Partial<Record<PlayerAction, string>> = { mace: 'mace.png', shield:
 const ENEMY_STEP_MS = 900
 const label = (d: Die) => `d${d.sides}${d.enchant ? `·${d.enchant}` : ''}`
 const list = (dice: Die[]) => (dice.length ? dice.map(label).join(' ') : '—')
-const offerTip = (o: Offer) => (o.kind === 'enchant' ? ENCHANT_TEXT[o.enchant] : o.kind === 'perk' ? PERK_TEXT[o.perk] : OFFER_TEXT[o.kind])
 const Bar = ({ value, max }: { value: number; max: number }) => (
   <span className="bar"><span style={{ width: `${(100 * value) / max}%` }} /></span>
 )
 
-export default function App() {
-  const [game, setGame] = useState(() => newGame(Math.random))
+export default function App({ initial }: { initial?: GameState } = {}) {
+  const [game, setGame] = useState(() => initial ?? newGame(Math.random))
   const [action, setAction] = useState<PlayerAction | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
   const [pendingOffer, setPendingOffer] = useState<number | null>(null)
@@ -26,6 +25,11 @@ export default function App() {
   const playing = game.status === 'playing' && game.phase === 'player'
   const rewarding = game.status === 'playing' && game.phase === 'reward'
   const offer = pendingOffer !== null ? game.offers[pendingOffer] : null
+
+  // An offer that needs a die: bring the dice picker into view (it sits below the fold on phones)
+  useEffect(() => {
+    if (pendingOffer !== null) document.querySelector('.hand')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [pendingOffer])
 
   // Enemy turn plays back one action at a time
   useEffect(() => {
@@ -48,31 +52,27 @@ export default function App() {
   const pickOffer = (index: number) => (offerNeedsDie(game.offers[index]) ? setPendingOffer(index) : takeReward(index))
   const restart = () => { setGame(newGame(Math.random)); setAction(null); setPicked(null); setPendingOffer(null); setSelected([]) }
 
-  const phaseText = { player: 'Your turn', enemy: 'Enemy turn', reward: 'Choose a reward' }[game.phase]
 
   return (
     <main>
       <header>
         <span>Encounter {game.encounter + 1}/{ENCOUNTERS.length}</span>
-        <strong>{phaseText}</strong>
+        <strong>{headerText(game.phase, offer)}</strong>
       </header>
 
       {rewarding ? (
         <section className="rewards">
           {game.offers.map((o, i) => (
-            <button
-              key={i}
-              className={`offer ${pendingOffer === i ? 'selected' : ''}`}
-              data-tip={offerTip(o)}
-              onClick={() => pickOffer(i)}
-            >
+            <button key={i} className={`offer ${pendingOffer === i ? 'selected' : ''}`} onClick={() => pickOffer(i)}>
               <strong>{o.kind === 'perk' ? o.perk : o.kind}</strong>
               <span>{describeOffer(o)}</span>
+              <small>{offerTip(o)}</small>
             </button>
           ))}
-          <button className="offer skip" data-tip="Take no reward. A small bag stays predictable." onClick={() => takeReward(null)}>
+          <button className="offer skip" onClick={() => takeReward(null)}>
             <strong>Skip</strong>
             <span>Keep your bag as it is</span>
+            <small>Take no reward. A small bag stays predictable.</small>
           </button>
         </section>
       ) : (
