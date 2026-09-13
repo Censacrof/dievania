@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Die, type GameState, type Pool, type Rng, draw, enemyStep, loadEncounter, newGame, pickWeighted, playerAction } from './engine'
+import { type Die, type GameState, type Pool, type Rng, chooseReward, draw, enemyStep, loadEncounter, newGame, pickWeighted, playerAction, rollOffers } from './engine'
 import { ENCOUNTERS } from './content'
 
 /** rng value that makes `roll(sides)` return exactly `face` */
@@ -24,6 +24,8 @@ describe('newGame', () => {
     expect(s.enemies.map(e => [e.name, e.hp, e.block])).toEqual([['Slime', 26, 0]])
     expect(s.enemies[0].sprite).toBe('slime.png')
     expect(s.status).toBe('playing')
+    expect(s.dice).toHaveLength(8)
+    expect([s.handSize, s.sturdyBlock, s.perks, s.offers]).toEqual([4, 0, [], []])
   })
 
   it('the Slime has a drawn hand and a telegraphed first action', () => {
@@ -115,18 +117,15 @@ describe('playerAction', () => {
     expect(next.enemies[0].block).toBe(0)
   })
 
-  it('killing the last enemy loads the next encounter with a fresh player hand', () => {
+  it('killing the last enemy of a normal fight opens the reward phase with three offers', () => {
     const base = newGame(zero)
     const s = { ...base, enemies: [{ ...base.enemies[0], hp: 3 }] }
     const next = playerAction(s, 'mace', 0, 0, q(f(3, 6)))
     expect(next.log).toContain('Slime dies')
-    expect(next.encounter).toBe(1)
-    expect(next.enemies.map(e => e.name)).toEqual(['Bat', 'Bat'])
-    expect(next.enemies.map(e => sides(e.hand))).toEqual([[4, 8], [4, 8]])
-    expect(next.enemies.map(e => e.nextAction)).toEqual(['attack', 'attack'])
-    expect(next.hand).toHaveLength(4)
-    expect(next.bag).toHaveLength(4)
-    expect(next.phase).toBe('player')
+    expect(next.phase).toBe('reward')
+    expect(next.encounter).toBe(0)
+    expect(next.offers).toHaveLength(3)
+    expect(() => playerAction(next, 'skip', 1, 0, zero)).toThrow(/phase/)
   })
 
   it('killing the Vampire Knight wins the game', () => {
@@ -234,5 +233,154 @@ describe('loadEncounter', () => {
     expect(s.hand).toHaveLength(4)
     expect(s.discard).toHaveLength(0)
     expect(s.enemies.every(e => e.hand.length === 2 && e.nextAction === 'attack')).toBe(true)
+  })
+})
+
+describe('rewards', () => {
+  const cleared = (): GameState => {
+    const base = newGame(zero)
+    return playerAction({ ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }, 'mace', 0, 0, q(f(1, 6)))
+  }
+
+  it('rollOffers draws three distinct offers; rng 0 walks the pool in order', () => {
+    const offers = rollOffers(newGame(zero), zero)
+    expect(offers).toEqual([{ kind: 'upgrade' }, { kind: 'add', sides: 4 }, { kind: 'remove' }])
+  })
+
+  it('rollOffers keeps bag-wide upgrades at the tail and only while available', () => {
+    const s = newGame(zero)
+    expect(rollOffers(s, () => 0.999)).toEqual([{ kind: 'perk', perk: 'overkill' }, { kind: 'perk', perk: 'steadyHands' }, { kind: 'handSize' }])
+    const maxed = { ...s, handSize: 6, perks: ['overkill' as const, 'steadyHands' as const] }
+    expect(rollOffers(maxed, () => 0.999).map(o => o.kind)).toEqual(['enchant', 'remove', 'add'])
+  })
+
+  it('rollOffers skips Remove when the bag is barely bigger than the hand', () => {
+    const s = { ...newGame(zero), handSize: 7 }
+    expect(rollOffers(s, zero).map(o => o.kind)).toEqual(['upgrade', 'add', 'enchant'])
+  })
+
+  it('Upgrade steps one die up and keeps its enchantment, then loads the next encounter', () => {
+    const s = cleared()
+    const enchanted = { ...s, dice: s.dice.map(d => (d.id === 0 ? { ...d, enchant: 'heavy' as const } : d)) }
+    const next = chooseReward({ ...enchanted, offers: [{ kind: 'upgrade' }] }, 0, 0, zero)
+    expect(next.dice.find(d => d.id === 0)).toEqual({ id: 0, sides: 8, enchant: 'heavy' })
+    expect(next.encounter).toBe(1)
+    expect(next.phase).toBe('player')
+    expect(next.offers).toEqual([])
+    expect(next.enemies.map(e => e.name)).toEqual(['Bat', 'Bat'])
+    expect(next.bag.length + next.hand.length).toBe(8)
+  })
+
+  it('Upgrade refuses a d20', () => {
+    const s = cleared()
+    expect(() => chooseReward({ ...s, offers: [{ kind: 'upgrade' }] }, 0, 6, zero)).toThrow(/upgrade/i)
+  })
+
+  it('Add puts a new die with a fresh id in the collection', () => {
+    const next = chooseReward({ ...cleared(), offers: [{ kind: 'add', sides: 12 }] }, 0, undefined, zero)
+    expect(next.dice).toHaveLength(9)
+    expect(next.dice.at(-1)).toEqual({ id: 8, sides: 12 })
+    expect(next.nextDieId).toBe(9)
+  })
+
+  it('Remove drops a die, but never below hand size + 1', () => {
+    const s = { ...cleared(), offers: [{ kind: 'remove' as const }] }
+    expect(chooseReward(s, 0, 3, zero).dice.map(d => d.id)).toEqual([0, 1, 2, 4, 5, 6, 7])
+    expect(() => chooseReward({ ...s, handSize: 7 }, 0, 3, zero)).toThrow(/remove/i)
+  })
+
+  it('Enchant tags an unenchanted die only', () => {
+    const s = { ...cleared(), offers: [{ kind: 'enchant' as const, enchant: 'holy' as const }] }
+    const next = chooseReward(s, 0, 2, zero)
+    expect(next.dice.find(d => d.id === 2)?.enchant).toBe('holy')
+    expect(() => chooseReward({ ...next, phase: 'reward', offers: s.offers }, 0, 2, zero)).toThrow(/enchant/i)
+  })
+
+  it('Bigger hand raises hand size and the next fight draws that many', () => {
+    const next = chooseReward({ ...cleared(), offers: [{ kind: 'handSize' }] }, 0, undefined, zero)
+    expect(next.handSize).toBe(5)
+    expect(next.hand).toHaveLength(5)
+  })
+
+  it('Perk is recorded once', () => {
+    const next = chooseReward({ ...cleared(), offers: [{ kind: 'perk', perk: 'overkill' }] }, 0, undefined, zero)
+    expect(next.perks).toEqual(['overkill'])
+  })
+
+  it('Skip changes nothing and loads the next encounter', () => {
+    const s = cleared()
+    const next = chooseReward(s, null, undefined, zero)
+    expect(next.dice).toEqual(s.dice)
+    expect(next.encounter).toBe(1)
+    expect(next.phase).toBe('player')
+  })
+
+  it('chooseReward only works in the reward phase', () => {
+    expect(() => chooseReward(newGame(zero), null, undefined, zero)).toThrow(/phase/)
+  })
+})
+
+describe('enchantments', () => {
+  const withEnchant = (enchant: Die['enchant'], s = newGame(zero)): GameState =>
+    ({ ...s, hand: s.hand.map((d, i) => (i === 0 ? { ...d, enchant } : d)) })
+
+  it('Heavy adds 2 to Mace', () => {
+    const next = playerAction(withEnchant('heavy'), 'mace', 0, 0, q(f(4, 6)))
+    expect(next.enemies[0].hp).toBe(20)
+    expect(next.log.at(-1)).toContain('Heavy')
+  })
+
+  it('Piercing ignores the target Block', () => {
+    const base = withEnchant('piercing')
+    const s = { ...base, enemies: [{ ...base.enemies[0], block: 3 }] }
+    const next = playerAction(s, 'mace', 0, 0, q(f(4, 6)))
+    expect(next.enemies[0].hp).toBe(22)
+    expect(next.enemies[0].block).toBe(3)
+  })
+
+  it('Holy heals the full roll', () => {
+    expect(playerAction({ ...withEnchant('holy'), hp: 10 }, 'miracle', 0, 0, q(f(5, 6))).hp).toBe(15)
+  })
+
+  it('Lucky rerolls a 1 once', () => {
+    const next = playerAction(withEnchant('lucky'), 'mace', 0, 0, q(f(1, 6), f(5, 6)))
+    expect(next.enemies[0].hp).toBe(21)
+    const unlucky = playerAction(withEnchant('lucky'), 'mace', 0, 0, q(f(1, 6), f(1, 6)))
+    expect(unlucky.enemies[0].hp).toBe(25)
+  })
+
+  it('Echo draws a die after use', () => {
+    const next = playerAction(withEnchant('echo'), 'skip', 0, 0, zero)
+    expect(next.hand.map(d => d.id)).toEqual([1, 2, 3, 4])
+    expect(next.bag).toHaveLength(3)
+  })
+
+  it('Sturdy Block survives upkeep and is eaten after normal Block', () => {
+    let s = playerAction(withEnchant('sturdy'), 'shield', 0, 0, q(f(5, 6)))
+    expect([s.block, s.sturdyBlock]).toEqual([0, 5])
+    s = playerAction(s, 'shield', 1, 0, q(f(2, 6)))
+    expect([s.block, s.sturdyBlock]).toEqual([2, 5])
+    s = playerAction(s, 'skip', 2, 0, zero)
+    s = playerAction(s, 'skip', 3, 0, zero)
+    s = enemyStep(s, q(f(4, 8)))
+    expect([s.hp, s.block, s.sturdyBlock]).toEqual([30, 0, 3])
+    s = enemyStep(s, q(f(1, 8)))
+    s = enemyStep(s, zero)
+    expect([s.phase, s.block, s.sturdyBlock]).toEqual(['player', 0, 2])
+  })
+})
+
+describe('perks', () => {
+  it('Steady hands puts the two largest dice in the opening hand', () => {
+    const s = loadEncounter({ ...newGame(zero), perks: ['steadyHands'] }, 1, zero)
+    expect(sides(s.hand)).toEqual([20, 20, 6, 6])
+  })
+
+  it('Overkill carries excess Mace damage to the next living enemy', () => {
+    const base = newGame(zero, 1)
+    const s = { ...base, perks: ['overkill' as const], enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }] }
+    const next = playerAction(s, 'mace', 0, 0, q(f(6, 6)))
+    expect(next.enemies.map(e => [e.hp, e.block])).toEqual([[0, 0], [7, 0]])
+    expect(next.log.at(-1)).toContain('Overkill')
   })
 })
