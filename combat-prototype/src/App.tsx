@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { type Die, type PlayerAction, alive, enemyStep, newGame, playerAction } from './game/engine'
+import { PLAYER } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
@@ -31,8 +32,8 @@ export default function App() {
   return (
     <main>
       <header>
-        <h1>Cleric · HP {game.hp}/{game.maxHp} · Block {game.block}</h1>
-        <span>Encounter {game.encounter + 1}/3 · {game.phase === 'player' ? 'Your turn' : 'Enemy turn'}</span>
+        <span>Encounter {game.encounter + 1}/3</span>
+        <strong>{game.phase === 'player' ? 'Your turn' : 'Enemy turn'}</strong>
       </header>
 
       <section className="enemies">
@@ -55,22 +56,29 @@ export default function App() {
         ))}
       </section>
 
-      <section className="hand">
-        {game.hand.map(d => (
-          <button key={d.id} className={`die ${action ?? ''}`} disabled={!playing || !action} onClick={() => spendDie(d.id)}>
-            <strong>d{d.sides}</strong>
-          </button>
-        ))}
+      <section className={`player ${playing ? 'active' : ''}`}>
+        <img src={PLAYER.sprite} alt="" />
+        <div className="player-info">
+          <strong>{PLAYER.name}</strong>
+          <span>HP {game.hp}/{game.maxHp} · Block {game.block}</span>
+          <div className="hand">
+            {game.hand.map(d => (
+              <button key={d.id} className={`die ${action ?? ''}`} disabled={!playing || !action} onClick={() => spendDie(d.id)}>
+                <strong>d{d.sides}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="actions">
+            {ACTIONS.map(a => (
+              <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => setAction(a)}>
+                {a}
+              </button>
+            ))}
+            <small>{!playing ? 'Wait for the enemies' : action ? `Pick a die to ${action}` : 'Pick an action, then a die'}</small>
+          </div>
+          <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
+        </div>
       </section>
-      <section className="actions">
-        {ACTIONS.map(a => (
-          <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => setAction(a)}>
-            {a}
-          </button>
-        ))}
-        <small>{action ? `Pick a die to ${action}` : 'Pick an action, then a die'}</small>
-      </section>
-      <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
 
       {game.status !== 'playing' && (
         <section className="banner">

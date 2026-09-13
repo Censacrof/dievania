@@ -1,7 +1,6 @@
 main { max-width: 900px; margin: 0 auto; padding: 1rem; display: grid; gap: .75rem; }
-main > small { color: #998; }
-header { display: flex; justify-content: space-between; align-items: baseline; }
-h1 { margin: 0; font-size: 1.4rem; }
+header { display: flex; justify-content: space-between; align-items: baseline; color: #998; }
+header strong { color: #e8e2e8; font-size: 1.1rem; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 
@@ -19,6 +18,11 @@ button:disabled { cursor: not-allowed; }
 .next-action.attack, .next-action.bite { color: #e87; }
 .next-action.shield { color: #7ae; }
 
+.player { display: grid; grid-template-columns: 128px 1fr; column-gap: .75rem; background: #161a1e; border: 2px solid #2a343d; border-radius: 8px; padding: .75rem; }
+.player.active { border-color: #4a7a9a; }
+.player img { width: 128px; height: 128px; image-rendering: pixelated; align-self: start; }
+.player-info { display: grid; gap: .5rem; align-content: start; }
+.player-info > small { color: #998; }
 .hand { display: flex; gap: .75rem; flex-wrap: wrap; min-height: 84px; }
 .die { width: 84px; height: 84px; border-radius: 10px; border: 2px solid #555; background: #222; font-size: 1.2rem; }
 .die:disabled { opacity: .5; }

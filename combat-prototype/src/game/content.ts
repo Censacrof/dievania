@@ -1,6 +1,6 @@
 import type { EnemyDef, Sides } from './engine'
 
-export const PLAYER = { hp: 30, handSize: 4, bag: [6, 6, 6, 6, 6, 6, 20, 20] as Sides[] }
+export const PLAYER = { name: 'Cleric', sprite: 'cleric.png', hp: 30, handSize: 4, bag: [6, 6, 6, 6, 6, 6, 20, 20] as Sides[] }
 
 const SLIME: EnemyDef = {
   name: 'Slime',
