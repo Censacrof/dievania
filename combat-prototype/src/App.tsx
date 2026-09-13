@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { type Die, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
-import { PLAYER } from './game/content'
+import { ENCOUNTERS, PLAYER } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
+/** equipment icons under public/; Skip has none */
+const ICONS: Partial<Record<PlayerAction, string>> = { mace: 'mace.png', shield: 'shield.png', miracle: 'reliq.png' }
 const ENEMY_STEP_MS = 900
 const label = (d: Die) => `d${d.sides}${d.enchant ? `·${d.enchant}` : ''}`
 const list = (dice: Die[]) => (dice.length ? dice.map(label).join(' ') : '—')
@@ -43,7 +45,7 @@ export default function App() {
   return (
     <main>
       <header>
-        <span>Encounter {game.encounter + 1}/3</span>
+        <span>Encounter {game.encounter + 1}/{ENCOUNTERS.length}</span>
         <strong>{phaseText}</strong>
       </header>
 
@@ -115,7 +117,8 @@ export default function App() {
               <div className="actions">
                 {ACTIONS.map(a => (
                   <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => setAction(a)}>
-                    {a}
+                    {ICONS[a] && <img src={ICONS[a]} alt="" />}
+                    <span>{a}</span>
                   </button>
                 ))}
                 <small>{!playing ? 'Wait for the enemies' : action ? `Pick a die to ${action}` : 'Pick an action, then a die'}</small>

@@ -32,7 +32,8 @@ button:disabled { cursor: not-allowed; }
 .die:not(:disabled).skip { border-color: #999; }
 
 .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.action { padding: .5rem 1.2rem; border-radius: 8px; border: 2px solid #555; background: #222; text-transform: capitalize; }
+.action { padding: .4rem .9rem; border-radius: 8px; border: 2px solid #555; background: #222; text-transform: capitalize; display: flex; align-items: center; gap: .5rem; }
+.action img { width: 40px; height: 40px; image-rendering: pixelated; }
 .action.selected.mace { border-color: #d64; background: #3a1f18; }
 .action.selected.shield { border-color: #48c; background: #182a3a; }
 .action.selected.miracle { border-color: #dc6; background: #3a3218; }

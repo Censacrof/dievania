@@ -105,11 +105,18 @@ through its Block.
 
 ### Encounters (fixed sequence)
 
-| # | Enemy | HP | Bag | Hand | Actions |
-|---|---|---|---|---|---|
-| 1 | Slime | 26 | 2d8 + 2d6 | 2 | Attack, Shield |
-| 2 | Bat ×2 | 10 each | d4 + 2d8 | 2 | Attack, Shield |
-| 3 | Vampire Knight | 40 | 2d6 + d8 + d12 + 2d20 | 3 | Attack, Shield, Bite |
+| # | Encounter |
+|---|---|
+| 1 | Slime |
+| 2 | Slime ×2 |
+| 3 | Bat ×2 + Slime |
+| 4 | Vampire Knight |
+
+| Enemy | HP | Bag | Hand | Actions |
+|---|---|---|---|---|
+| Slime | 26 | 2d8 + 2d6 | 2 | Attack, Shield |
+| Bat | 10 | d4 + 2d8 | 2 | Attack, Shield |
+| Vampire Knight | 40 | 2d6 + d8 + d12 + 2d20 | 3 | Attack, Shield, Bite |
 
 Transition tendencies (exact weights live in `content.ts`):
 
@@ -164,7 +171,8 @@ Single component, `useState<GameState>`. English only.
   with d8", bag and discard contents. Click selects target.
 - Hand: one button per die, enabled only while an action is selected in the
   player phase.
-- Action row: Mace, Shield, Miracle, Skip. The selected action stays
+- Action row: Mace, Shield, Miracle, Skip, with the equipment icons
+  (`mace.png`, `shield.png`, `reliq.png`). The selected action stays
   selected until changed, so repeated actions need one click per die.
 - Enemy phase: a `setTimeout` per step calls `enemyStep` every ~0.9 s.
 - Reward phase: offer cards replace the enemy cards; the player card shows

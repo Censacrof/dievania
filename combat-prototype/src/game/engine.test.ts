@@ -129,7 +129,7 @@ describe('playerAction', () => {
   })
 
   it('killing the Vampire Knight wins the game', () => {
-    const base = newGame(zero, 2)
+    const base = newGame(zero, 3)
     const s = { ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }
     expect(playerAction(s, 'mace', 0, 0, zero).status).toBe('won')
   })
@@ -163,7 +163,7 @@ describe('enemyStep', () => {
   })
 
   it('Bite heals the enemy for the damage dealt, capped at max HP', () => {
-    const base = newGame(zero, 2)
+    const base = newGame(zero, 3)
     const s = enemyPhase({ ...base, enemies: [{ ...base.enemies[0], hp: 30, nextAction: 'bite' as const, hand: [d(9, 20)], block: 0 }] })
     const next = enemyStep(s, q(f(15, 20)))
     expect(next.hp).toBe(15)
@@ -180,13 +180,13 @@ describe('enemyStep', () => {
   })
 
   it('enemies act one after another; the first one finishes its hand before the second starts', () => {
-    let s = enemyPhase(newGame(zero, 1))
+    let s = enemyPhase(newGame(zero, 2))
     s = enemyStep(s, q(f(1, 4), 0))
-    expect(s.enemies.map(e => e.hand.length)).toEqual([1, 2])
+    expect(s.enemies.map(e => e.hand.length)).toEqual([1, 2, 2])
     s = enemyStep(s, q(f(1, 8), 0))
-    expect(s.enemies.map(e => e.hand.length)).toEqual([0, 2])
+    expect(s.enemies.map(e => e.hand.length)).toEqual([0, 2, 2])
     s = enemyStep(s, q(f(1, 4), 0))
-    expect(s.enemies.map(e => e.hand.length)).toEqual([0, 1])
+    expect(s.enemies.map(e => e.hand.length)).toEqual([0, 1, 2])
   })
 
   it('when every enemy hand is empty, upkeep draws for everyone, clears player Block and returns to the player phase', () => {
@@ -206,16 +206,24 @@ describe('enemyStep', () => {
   })
 
   it('a dead enemy never acts', () => {
-    const base = newGame(zero, 1)
-    const s = enemyPhase({ ...base, enemies: [{ ...base.enemies[0], hp: 0 }, base.enemies[1]] })
+    const base = newGame(zero, 2)
+    const s = enemyPhase({ ...base, enemies: [{ ...base.enemies[0], hp: 0 }, base.enemies[1], base.enemies[2]] })
     const next = enemyStep(s, q(f(1, 4)))
     expect(next.enemies[0].hand).toHaveLength(2)
     expect(next.enemies[1].hand).toHaveLength(1)
   })
 })
 
+describe('encounters', () => {
+  it('runs Slime, two Slimes, two Bats with a Slime, then the Vampire Knight', () => {
+    expect(ENCOUNTERS.map(e => e.map(d => d.name))).toEqual([
+      ['Slime'], ['Slime', 'Slime'], ['Bat', 'Bat', 'Slime'], ['Vampire Knight'],
+    ])
+  })
+})
+
 describe('Markov chains', () => {
-  const [slime, , knight] = [ENCOUNTERS[0][0], ENCOUNTERS[1][0], ENCOUNTERS[2][0]]
+  const [slime, knight] = [ENCOUNTERS[0][0], ENCOUNTERS[3][0]]
   it('the Slime shields more when wounded', () => {
     expect(slime.chain.attack({ self: 0.4, player: 1, block: 0 }).shield!).toBeGreaterThan(slime.chain.attack({ self: 1, player: 1, block: 0 }).shield!)
   })
@@ -228,10 +236,11 @@ describe('Markov chains', () => {
 
 describe('loadEncounter', () => {
   it('resets the player bag and gives every enemy a hand and a first action', () => {
-    const s = loadEncounter({ ...newGame(zero), discard: [d(9, 6)] }, 1, zero)
+    const s = loadEncounter({ ...newGame(zero), discard: [d(9, 6)] }, 2, zero)
     expect(s.bag).toHaveLength(4)
     expect(s.hand).toHaveLength(4)
     expect(s.discard).toHaveLength(0)
+    expect(s.enemies).toHaveLength(3)
     expect(s.enemies.every(e => e.hand.length === 2 && e.nextAction === 'attack')).toBe(true)
   })
 })
@@ -267,7 +276,7 @@ describe('rewards', () => {
     expect(next.encounter).toBe(1)
     expect(next.phase).toBe('player')
     expect(next.offers).toEqual([])
-    expect(next.enemies.map(e => e.name)).toEqual(['Bat', 'Bat'])
+    expect(next.enemies.map(e => e.name)).toEqual(['Slime', 'Slime'])
     expect(next.bag.length + next.hand.length).toBe(8)
   })
 
@@ -377,10 +386,10 @@ describe('perks', () => {
   })
 
   it('Overkill carries excess Mace damage to the next living enemy', () => {
-    const base = newGame(zero, 1)
-    const s = { ...base, perks: ['overkill' as const], enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }] }
+    const base = newGame(zero, 2)
+    const s = { ...base, perks: ['overkill' as const], enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }, base.enemies[2]] }
     const next = playerAction(s, 'mace', 0, 0, q(f(6, 6)))
-    expect(next.enemies.map(e => [e.hp, e.block])).toEqual([[0, 0], [7, 0]])
+    expect(next.enemies.map(e => [e.hp, e.block])).toEqual([[0, 0], [7, 0], [26, 0]])
     expect(next.log.at(-1)).toContain('Overkill')
   })
 })

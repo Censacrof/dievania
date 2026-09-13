@@ -44,4 +44,4 @@ const VAMPIRE_KNIGHT: EnemyDef = {
   },
 }
 
-export const ENCOUNTERS: EnemyDef[][] = [[SLIME], [BAT, BAT], [VAMPIRE_KNIGHT]]
+export const ENCOUNTERS: EnemyDef[][] = [[SLIME], [SLIME, SLIME], [BAT, BAT, SLIME], [VAMPIRE_KNIGHT]]
