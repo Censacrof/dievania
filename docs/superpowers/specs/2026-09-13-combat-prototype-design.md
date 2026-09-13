@@ -21,9 +21,18 @@ Everything not needed to answer that is out of scope.
 
 ### Actions
 
-Every action uses **one die**: pick the action, pick the die, the die rolls
+Every action uses **one or more dice**: pick the action, select any number of
+dice from the hand, confirm. All selected dice roll, their faces are summed,
 and the effect applies immediately. The next choice is made knowing the
 result. Damage against **Block** is absorbed and consumes the Block.
+
+With several dice, per-die enchantments apply to their own die: Heavy adds 2
+per Heavy die, only a Piercing die's roll ignores Block, only a Holy die's
+roll heals in full, only a Sturdy die's roll goes to sturdy Block, Lucky
+rerolls its own 1, and Echo draws one die per Echo die used.
+
+**Trinket — Rosary Beads** (always equipped): whenever an action's total is
+exactly 7, heal 5 HP. Skip never rolls, so it never triggers it.
 
 | Action | Effect |
 |---|---|
@@ -46,17 +55,19 @@ Actions form a **Markov chain per action, not per turn**: after every action
 the enemy picks its next one from `chain[lastAction](ctx)`, where `ctx` is
 `{ self, player, block }`: HP fractions (0..1) of the enemy and the player,
 plus the enemy's own current Block. `opening` weights pick the very first
-action at encounter start. The enemy always uses the **first die in hand
-order**. Only the **next** action and the die it will use are visible.
+action at encounter start. An action spends the **first N dice in hand
+order**, where N is picked uniformly from 1 to the dice left in hand, right
+after the action is chosen (and again after every draw). Only the **next**
+action and the dice it will use are visible.
 
 ### Turn
 
 1. **Player turn.** Hand of 4. Target is a sticky selection on the enemy
    cards, defaulting to the first living enemy. Repeat until the hand is
-   empty: pick an action, pick a die, resolve. Enemies at 0 HP die
+   empty: pick an action, select dice, confirm, resolve. Enemies at 0 HP die
    immediately. When the last die is spent the enemy turn begins and every
    enemy's Block resets to 0.
-2. **Enemy turn.** Living enemies act one after another, one die per
+2. **Enemy turn.** Living enemies act one after another, N dice per
    action, each action revealed step by step (the UI waits ~0.9 s between
    actions). After each action the chain picks the next one.
 3. **Upkeep.** Every survivor discards its hand and draws a new one; the
@@ -143,12 +154,12 @@ Pure TypeScript, no React imports. All randomness goes through an injected
 - `engine.ts` — types and functions:
   - `newGame(rng, encounter = 0)` → encounter loaded, enemies given a first
     action and a hand, player hand drawn, phase `player`.
-  - `playerAction(state, action, dieId, targetId, rng)` → resolves one
-    player action. Throws out of phase, for a die not in hand, or for an
-    invalid Mace target. Handles enemy death, encounter transition, win, and
+  - `playerAction(state, action, dieIds, targetId, rng)` → resolves one
+    player action with the given dice. Throws out of phase, for an empty
+    selection, for a die not in hand, or for an invalid Mace target. Handles enemy death, encounter transition, win, and
     the hand-off to phase `enemy`.
   - `enemyStep(state, rng)` → one enemy action (the first living enemy with
-    dice left acts with its first die), or the upkeep that returns to phase
+    dice left acts with its first `nextCount` dice), or the upkeep that returns to phase
     `player` when every hand is empty. No-op outside phase `enemy`.
   - `rollOffers(state, rng)` → three offers, stored in `state.offers` when a
     fight is cleared (`phase: 'reward'`).
@@ -166,11 +177,16 @@ State is an immutable value; functions return new objects.
 
 Single component, `useState<GameState>`. English only.
 
-- Header: HP, Block, encounter number, whose turn it is.
-- Enemy cards: name, HP, Block, hand (first die highlighted), "Next: attack
-  with d8", bag and discard contents. Click selects target.
+- Header: encounter number and whose turn it is. The player card carries
+  sprite, name, HP with a health bar, Block, hand, actions, bag, trinket,
+  hand size and perks.
+- Enemy cards: sprite, name, HP with a health bar, Block, hand (the dice
+  about to be used highlighted), "Next: attack with d8 + d6", bag and
+  discard contents. Click selects target.
 - Hand: one button per die, enabled only while an action is selected in the
-  player phase.
+  player phase; clicking toggles selection. A Confirm button resolves the
+  action with the selected dice.
+- Trinket row: Rosary Beads icon, name and rule text.
 - Action row: Mace, Shield, Miracle, Skip, with the equipment icons
   (`mace.png`, `shield.png`, `reliq.png`). The selected action stays
   selected until changed, so repeated actions need one click per die.

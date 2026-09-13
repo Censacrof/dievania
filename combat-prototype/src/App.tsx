@@ -18,6 +18,7 @@ export default function App() {
   const [action, setAction] = useState<PlayerAction | null>(null)
   const [picked, setPicked] = useState<number | null>(null)
   const [pendingOffer, setPendingOffer] = useState<number | null>(null)
+  const [selected, setSelected] = useState<number[]>([])
 
   const living = game.enemies.filter(alive)
   const targetId = living.some(e => e.id === picked) ? picked! : living[0]?.id
@@ -32,16 +33,19 @@ export default function App() {
     return () => clearTimeout(t)
   }, [game])
 
-  const spendDie = (dieId: number) => {
-    if (!action) return
-    setGame(playerAction(game, action, dieId, targetId, Math.random))
+  const toggleDie = (dieId: number) => setSelected(sel => (sel.includes(dieId) ? sel.filter(id => id !== dieId) : [...sel, dieId]))
+  const confirm = () => {
+    if (!action || selected.length === 0) return
+    setGame(playerAction(game, action, selected, targetId, Math.random))
+    setSelected([])
   }
+  const chooseAction = (a: PlayerAction) => { setAction(a); if (a !== action) setSelected([]) }
   const takeReward = (index: number | null, dieId?: number) => {
     setGame(chooseReward(game, index, dieId, Math.random))
     setPendingOffer(null)
   }
   const pickOffer = (index: number) => (offerNeedsDie(game.offers[index]) ? setPendingOffer(index) : takeReward(index))
-  const restart = () => { setGame(newGame(Math.random)); setAction(null); setPicked(null); setPendingOffer(null) }
+  const restart = () => { setGame(newGame(Math.random)); setAction(null); setPicked(null); setPendingOffer(null); setSelected([]) }
 
   const phaseText = { player: 'Your turn', enemy: 'Enemy turn', reward: 'Choose a reward' }[game.phase]
 
@@ -79,9 +83,13 @@ export default function App() {
               <span>HP {e.hp}/{e.maxHp} · Block {e.block}</span>
               <Bar value={e.hp} max={e.maxHp} />
               <span className="enemy-hand">
-                {e.hand.map((d, i) => <em key={d.id} className={i === 0 ? 'next' : ''}>d{d.sides}</em>)}
+                {e.hand.map((d, i) => <em key={d.id} className={i < e.nextCount ? 'next' : ''}>d{d.sides}</em>)}
               </span>
-              {alive(e) && e.hand.length > 0 && <span className={`next-action ${e.nextAction}`}>Next: {e.nextAction} with d{e.hand[0].sides}</span>}
+              {alive(e) && e.hand.length > 0 && (
+                <span className={`next-action ${e.nextAction}`}>
+                  Next: {e.nextAction} with {e.hand.slice(0, e.nextCount).map(d => `d${d.sides}`).join(' + ')}
+                </span>
+              )}
               <small>Bag: {list(e.bag)} · Discard: {list(e.discard)}</small>
             </button>
           ))}
@@ -113,24 +121,34 @@ export default function App() {
             <>
               <div className="hand">
                 {game.hand.map(d => (
-                  <button key={d.id} className={`die ${action ?? ''}`} disabled={!playing || !action} onClick={() => spendDie(d.id)}>
+                  <button
+                    key={d.id}
+                    className={`die ${action ?? ''} ${selected.includes(d.id) ? 'selected' : ''}`}
+                    disabled={!playing || !action}
+                    onClick={() => toggleDie(d.id)}
+                  >
                     <strong>d{d.sides}</strong>
                     {d.enchant && <small>{d.enchant}</small>}
                   </button>
                 ))}
+                <button className="confirm" disabled={!playing || !action || selected.length === 0} onClick={confirm}>Confirm</button>
               </div>
               <div className="actions">
                 {ACTIONS.map(a => (
-                  <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => setAction(a)}>
+                  <button key={a} className={`action ${a} ${action === a ? 'selected' : ''}`} disabled={!playing} onClick={() => chooseAction(a)}>
                     {ICONS[a] && <img src={ICONS[a]} alt="" />}
                     <span>{a}</span>
                   </button>
                 ))}
-                <small>{!playing ? 'Wait for the enemies' : action ? `Pick a die to ${action}` : 'Pick an action, then a die'}</small>
+                <small>{!playing ? 'Wait for the enemies' : action ? `Pick dice to ${action}, then confirm` : 'Pick an action, then your dice'}</small>
               </div>
               <small>Bag: {list(game.bag)} · Discard: {list(game.discard)}</small>
             </>
           )}
+          <span className="trinket" title={PLAYER.trinket.text}>
+            <img src={PLAYER.trinket.sprite} alt="" />
+            <span><strong>{PLAYER.trinket.name}</strong> · {PLAYER.trinket.text}</span>
+          </span>
           <small>Hand size {game.handSize}{game.perks.length ? ` · Perks: ${game.perks.join(', ')}` : ''}</small>
         </div>
       </section>

@@ -60,3 +60,10 @@ button:disabled { cursor: not-allowed; }
 .bar span { display: block; height: 100%; background: #c33; transition: width .3s; }
 .player .bar span { background: #4a4; }
 .enemy .bar { grid-column: 2; }
+
+.die.selected { outline: 3px solid #fff; outline-offset: -3px; }
+.confirm { margin-left: auto; padding: 0 1.5rem; border-radius: 10px; border: 2px solid #ccc; background: #333; font-size: 1.1rem; }
+.confirm:disabled { opacity: .3; }
+.trinket { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: #bba; }
+.trinket img { width: 40px; height: 40px; image-rendering: pixelated; }
+.trinket strong { color: #edc; }
