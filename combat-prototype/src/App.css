@@ -44,3 +44,13 @@ button:disabled { cursor: not-allowed; }
 
 .log { height: 220px; overflow-y: auto; display: flex; flex-direction: column-reverse; background: #111; border-radius: 8px; padding: .5rem .75rem; font-family: monospace; font-size: .85rem; }
 .log p { margin: .15rem 0; }
+
+.rewards { display: flex; gap: 1rem; flex-wrap: wrap; }
+.offer { flex: 1 1 180px; text-align: left; background: #1a1a12; border: 2px solid #4a4020; border-radius: 8px; padding: .75rem; display: grid; gap: .3rem; }
+.offer strong { text-transform: capitalize; color: #edc; }
+.offer span { font-size: .9rem; color: #bba; }
+.offer.selected { border-color: #ec8; background: #2a2412; }
+.offer.skip { border-color: #444; background: #1a1a1a; }
+.offer.skip strong { color: #ccc; }
+.die { display: grid; place-content: center; gap: .1rem; }
+.die small { font-size: .7rem; color: #ec8; text-transform: capitalize; }
