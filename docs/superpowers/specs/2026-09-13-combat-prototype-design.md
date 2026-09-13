@@ -62,9 +62,46 @@ order**. Only the **next** action and the die it will use are visible.
 3. **Upkeep.** Every survivor discards its hand and draws a new one; the
    player's Block resets to 0 and a new hand of 4 is drawn. Back to 1.
 
-If all enemies are dead the next encounter starts (player bag reassembled,
-fresh hand); after the last one the player wins. If player HP reaches 0 the
+If all enemies are dead the reward phase starts (see Rewards); after the
+boss the player wins. If player HP reaches 0 the
 player loses. Overkill damage is lost.
+
+### Rewards
+
+After clearing a fight that is not the boss the game enters the **reward
+phase**: three offers plus Skip. Offers that need a target die highlight the
+player's dice collection; clicking a die applies the reward. Then the next
+encounter loads. The boss ends the run, no reward.
+
+The player's dice are a persistent **collection**; the bag is rebuilt from it
+at every fight. Each die may carry **one enchantment**, kept on size steps.
+
+Offer pool, three distinct draws (weights in `engine.ts`):
+
+| Offer | Weight | Target | Condition |
+|---|---|---|---|
+| Upgrade a die one step (d4 → d6 → d8 → d10 → d12 → d20) | 3 | die with sides < 20 | any such die |
+| Add a die (random size) | 3 | — | always |
+| Remove a die | 2 | any die | collection > hand size + 1 |
+| Enchant a die (random tag) | 3 | unenchanted die | any such die |
+| Bigger hand (+1, max 6) | 0.5 | — | hand size < 6 |
+| Steady hands / Overkill | 0.25 each | — | not owned |
+
+Enchantments:
+
+| Tag | Rule |
+|---|---|
+| Heavy | Mace roll +2 |
+| Piercing | Mace ignores the target's Block |
+| Holy | Miracle heals the full roll |
+| Lucky | a roll of 1 is rerolled once, any action |
+| Echo | after the die is used, draw one die into the hand |
+| Sturdy | Shield goes into a separate Block pool that never expires; damage eats normal Block first |
+
+Bag-wide upgrades: **Bigger hand** raises the hand size for every draw.
+**Steady hands** puts the two largest dice in the opening hand of each fight.
+**Overkill** carries Mace damage beyond a kill to the next living enemy,
+through its Block.
 
 ### Encounters (fixed sequence)
 
@@ -106,6 +143,11 @@ Pure TypeScript, no React imports. All randomness goes through an injected
   - `enemyStep(state, rng)` → one enemy action (the first living enemy with
     dice left acts with its first die), or the upkeep that returns to phase
     `player` when every hand is empty. No-op outside phase `enemy`.
+  - `rollOffers(state, rng)` → three offers, stored in `state.offers` when a
+    fight is cleared (`phase: 'reward'`).
+  - `chooseReward(state, index | null, dieId, rng)` → applies the offer (null
+    skips), then loads the next encounter. Throws out of phase or for an
+    ineligible die.
   - `draw(pool, n, rng)`, `pickWeighted(weights, rng)` → shared helpers.
   - rng order: one call per roll, one per draw, one per chain pick, in the
     order the text above describes.
@@ -125,6 +167,9 @@ Single component, `useState<GameState>`. English only.
 - Action row: Mace, Shield, Miracle, Skip. The selected action stays
   selected until changed, so repeated actions need one click per die.
 - Enemy phase: a `setTimeout` per step calls `enemyStep` every ~0.9 s.
+- Reward phase: offer cards replace the enemy cards; the player card shows
+  the dice collection instead of the hand, clickable when an offer that needs
+  a die is selected. Die buttons and bag listings show the enchant tag.
 - Log panel, newest at bottom. Win/lose banner with Restart.
 
 No animations beyond the timed playback, no images, no routing, no
@@ -140,8 +185,10 @@ Vitest, engine only. TDD red → green → refactor. Test cases cover at least:
 - enemy attack, shield and bite; enemies acting in order; dead enemies
   skipped; upkeep; player death
 - encounter transition, win, chain weights reacting to HP
+- offer rolling and conditions, every reward kind, every enchantment, both
+  perks
 
 ### Out of scope (first experiments after playtest)
 
-Dice reward between encounters, Focus action (hold dice), rerolls,
-threshold-based hits instead of sums, multi-target Mace, skeleton enemy.
+Focus action (hold dice), stackable enchantments, threshold-based hits
+instead of sums, skeleton enemy.
