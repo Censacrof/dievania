@@ -1,6 +1,14 @@
 import type { EnemyDef, Sides } from './engine'
 
-export const PLAYER = { name: 'Cleric', sprite: 'cleric.png', hp: 30, handSize: 4, bag: [6, 6, 6, 6, 6, 6, 20, 20] as Sides[] }
+export const PLAYER = {
+  name: 'Cleric',
+  sprite: 'cleric.png',
+  hp: 30,
+  handSize: 4,
+  bag: [6, 6, 6, 6, 6, 6, 20, 20] as Sides[],
+  trinket: { name: 'Rosary Beads', sprite: 'rosary-beads.png', text: 'Whenever you roll a total of 7, heal 5 HP' },
+}
+export const ROSARY = { total: 7, heal: 5 }
 
 const SLIME: EnemyDef = {
   name: 'Slime',

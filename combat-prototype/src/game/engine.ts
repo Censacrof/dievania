@@ -1,4 +1,4 @@
-import { ENCOUNTERS, PLAYER } from './content'
+import { ENCOUNTERS, PLAYER, ROSARY } from './content'
 
 export type Sides = 4 | 6 | 8 | 10 | 12 | 20
 export type PlayerAction = 'mace' | 'shield' | 'miracle' | 'skip'
@@ -46,8 +46,9 @@ export interface Enemy extends Pool {
   block: number
   handSize: number
   chain: EnemyDef['chain']
-  /** the action it will perform with the first die in hand */
+  /** the action it will perform next, with the first `nextCount` dice in hand */
   nextAction: EnemyAction
+  nextCount: number
 }
 
 export interface GameState extends Pool {
@@ -104,6 +105,12 @@ const spend = <P extends Pool>(pool: P, die: Die): P => ({ ...pool, hand: pool.h
 /** Damage against Block: returns what gets through and the Block left */
 const absorb = (damage: number, block: number) => ({ through: Math.max(0, damage - block), blockLeft: Math.max(0, block - damage) })
 
+// ponytail: enemies commit a uniformly random number of their remaining dice; make it chain-driven if telegraphs feel arbitrary
+const pickCount = (hand: Die[], rng: Rng) => (hand.length ? 1 + Math.floor(rng() * hand.length) : 0)
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+const plural = (dice: Die[], faces: number[], total: number) =>
+  `${dice.map(d => `d${d.sides}${d.enchant ? ` [${d.enchant}]` : ''}`).join(' + ')}: ${faces.join(' + ')}${faces.length > 1 ? ` = ${total}` : ''}`
+
 const ctxOf = (e: Enemy, state: GameState): Ctx => ({ self: e.hp / e.maxHp, player: state.hp / state.maxHp, block: e.block })
 
 /** Opening hand of a fight; Steady hands guarantees the two largest dice */
@@ -116,11 +123,14 @@ function openingHand(state: GameState, rng: Rng): Pool {
 }
 
 export function loadEncounter(state: GameState, encounter: number, rng: Rng): GameState {
-  const enemies = ENCOUNTERS[encounter].map((def, id): Enemy => ({
-    id, name: def.name, sprite: def.sprite, hp: def.hp, maxHp: def.hp, block: 0, handSize: def.handSize, chain: def.chain,
-    nextAction: pickWeighted(def.opening, rng),
-    ...draw({ bag: def.dice.map((sides, i) => ({ id: i, sides })), discard: [], hand: [] }, def.handSize, rng),
-  }))
+  const enemies = ENCOUNTERS[encounter].map((def, id): Enemy => {
+    const nextAction = pickWeighted(def.opening, rng)
+    const pool = draw({ bag: def.dice.map((sides, i) => ({ id: i, sides })), discard: [], hand: [] }, def.handSize, rng)
+    return {
+      id, name: def.name, sprite: def.sprite, hp: def.hp, maxHp: def.hp, block: 0, handSize: def.handSize, chain: def.chain,
+      nextAction, ...pool, nextCount: pickCount(pool.hand, rng),
+    }
+  })
   const log = [...state.log, `--- Encounter ${encounter + 1}: ${enemies.map(e => e.name).join(', ')} ---`]
   return { ...state, ...openingHand(state, rng), encounter, enemies, block: 0, phase: 'player', offers: [], log }
 }
@@ -215,29 +225,45 @@ export function chooseReward(state: GameState, index: number | null, dieId: numb
 // ---------------------------------------------------------------------------
 // Combat
 
-export function playerAction(state: GameState, action: PlayerAction, dieId: number, targetId: number, rng: Rng): GameState {
+export function playerAction(state: GameState, action: PlayerAction, dieIds: number[], targetId: number, rng: Rng): GameState {
   if (state.status !== 'playing' || state.phase !== 'player') throw new Error('Not the player phase')
-  const die = state.hand.find(d => d.id === dieId)
-  if (!die) throw new Error(`Die ${dieId} is not in hand`)
+  if (dieIds.length === 0) throw new Error('Pick at least one die')
+  const dice = dieIds.map(id => {
+    const die = state.hand.find(d => d.id === id)
+    if (!die) throw new Error(`Die ${id} is not in hand`)
+    return die
+  })
   const target = state.enemies.find(e => e.id === targetId && alive(e))
   if (action === 'mace' && !target) throw new Error('Invalid target')
 
-  let next = spend(state, die)
+  let next: GameState = dice.reduce((st, die) => spend(st, die), state)
   const log = [...state.log]
-  const tag = die.enchant ? ` [${die.enchant}]` : ''
-  let face = action === 'skip' ? 0 : roll(die.sides, rng)
-  let luck = ''
-  if (die.enchant === 'lucky' && face === 1) {
-    face = roll(die.sides, rng)
-    luck = ` (Lucky reroll from 1)`
-  }
+
+  // Roll every die; Lucky rerolls a 1 once
+  let rerolled = false
+  const faces = dice.map(die => {
+    if (action === 'skip') return 0
+    let face = roll(die.sides, rng)
+    if (die.enchant === 'lucky' && face === 1) {
+      face = roll(die.sides, rng)
+      rerolled = true
+    }
+    return face
+  })
+  const total = sum(faces)
+  const part = (enchant: Enchant) => sum(faces.filter((_, i) => dice[i].enchant === enchant))
+  const count = (enchant: Enchant) => dice.filter(d => d.enchant === enchant).length
+  const text = plural(dice, faces, total) + (rerolled ? ' (Lucky reroll)' : '')
 
   if (action === 'mace') {
-    const power = face + (die.enchant === 'heavy' ? 2 : 0)
-    const { through, blockLeft } = die.enchant === 'piercing' ? { through: power, blockLeft: target!.block } : absorb(power, target!.block)
+    const heavy = 2 * count('heavy')
+    const piercing = part('piercing')
+    const { through: normal, blockLeft } = absorb(total - piercing + heavy, target!.block)
+    const through = normal + piercing
+    const blocked = total + heavy - through
     const hit = { ...target!, hp: Math.max(0, target!.hp - through), block: blockLeft }
     let enemies = next.enemies.map(e => (e.id === hit.id ? hit : e))
-    log.push(`You swing the Mace with d${die.sides}${tag}: ${face}${luck}${die.enchant === 'heavy' ? ' +2 Heavy' : ''} → ${hit.name} takes ${through}` + (power - through ? ` (${power - through} blocked)` : ''))
+    log.push(`You swing the Mace with ${text}${heavy ? ` +${heavy} Heavy` : ''} → ${hit.name} takes ${through}` + (blocked ? ` (${blocked} blocked)` : ''))
     if (!alive(hit)) {
       log.push(`${hit.name} dies`)
       const excess = through - target!.hp
@@ -252,25 +278,29 @@ export function playerAction(state: GameState, action: PlayerAction, dieId: numb
     }
     next = { ...next, enemies }
   } else if (action === 'shield') {
-    if (die.enchant === 'sturdy') {
-      next = { ...next, sturdyBlock: next.sturdyBlock + face }
-      log.push(`You raise the Shield with d${die.sides}${tag}: ${face}${luck} → Sturdy Block ${next.sturdyBlock}`)
-    } else {
-      next = { ...next, block: next.block + face }
-      log.push(`You raise the Shield with d${die.sides}${tag}: ${face}${luck} → Block ${next.block}`)
-    }
+    const sturdy = part('sturdy')
+    next = { ...next, block: next.block + total - sturdy, sturdyBlock: next.sturdyBlock + sturdy }
+    log.push(`You raise the Shield with ${text} → Block ${next.block}` + (sturdy ? `, Sturdy Block ${next.sturdyBlock}` : ''))
   } else if (action === 'miracle') {
-    const heal = Math.min(state.maxHp - state.hp, die.enchant === 'holy' ? face : Math.floor(face / 2))
+    const holy = part('holy')
+    const heal = Math.min(state.maxHp - next.hp, holy + Math.floor((total - holy) / 2))
     next = { ...next, hp: next.hp + heal }
-    log.push(`Miracle with d${die.sides}${tag}: ${face}${luck} → you heal ${heal}`)
+    log.push(`Miracle with ${text} → you heal ${heal}`)
   } else {
-    log.push(`You skip d${die.sides}${tag}`)
+    log.push(`You skip ${dice.map(d => `d${d.sides}`).join(' + ')}`)
   }
 
-  if (die.enchant === 'echo') {
-    const extra = draw({ bag: next.bag, discard: next.discard, hand: [] }, 1, rng)
+  if (action !== 'skip' && total === ROSARY.total) {
+    const heal = Math.min(state.maxHp - next.hp, ROSARY.heal)
+    next = { ...next, hp: next.hp + heal }
+    log.push(`${PLAYER.trinket.name}: you rolled ${ROSARY.total} and heal ${heal}`)
+  }
+
+  const echoes = count('echo')
+  if (echoes) {
+    const extra = draw({ bag: next.bag, discard: next.discard, hand: [] }, echoes, rng)
     next = { ...next, bag: extra.bag, discard: extra.discard, hand: [...next.hand, ...extra.hand] }
-    if (extra.hand.length) log.push(`Echo: you draw a d${extra.hand[0].sides}`)
+    if (extra.hand.length) log.push(`Echo: you draw ${extra.hand.map(d => `d${d.sides}`).join(' + ')}`)
   }
   next = { ...next, log }
 
@@ -291,40 +321,47 @@ export function enemyStep(state: GameState, rng: Rng): GameState {
   const actor = state.enemies.find(e => alive(e) && e.hand.length > 0)
 
   if (!actor) {
-    const enemies = state.enemies.map(e => (alive(e) ? { ...e, ...draw({ ...e, discard: [...e.discard, ...e.hand], hand: [] }, e.handSize, rng) } : e))
+    const enemies = state.enemies.map(e => {
+      if (!alive(e)) return e
+      const pool = draw({ ...e, discard: [...e.discard, ...e.hand], hand: [] }, e.handSize, rng)
+      return { ...e, ...pool, nextCount: pickCount(pool.hand, rng) }
+    })
     return { ...state, enemies, block: 0, phase: 'player', ...draw(state, state.handSize, rng) }
   }
 
-  const die = actor.hand[0]
-  const face = roll(die.sides, rng)
+  const dice = actor.hand.slice(0, actor.nextCount)
+  const faces = dice.map(d => roll(d.sides, rng))
+  const total = sum(faces)
+  const text = plural(dice, faces, total)
   const log = [...state.log]
   let hp = state.hp
   let block = state.block
   let sturdyBlock = state.sturdyBlock
-  let acted: Enemy = spend(actor, die)
+  let acted: Enemy = dice.reduce((e, die) => spend(e, die), actor)
 
   if (acted.nextAction === 'shield') {
-    acted = { ...acted, block: acted.block + face }
-    log.push(`${actor.name} shields with d${die.sides}: ${face} → Block ${acted.block}`)
+    acted = { ...acted, block: acted.block + total }
+    log.push(`${actor.name} shields with ${text} → Block ${acted.block}`)
   } else {
-    const first = absorb(face, block)
+    const first = absorb(total, block)
     const second = absorb(first.through, sturdyBlock)
     block = first.blockLeft
     sturdyBlock = second.blockLeft
     const through = second.through
     hp -= through
-    const blocked = face - through ? ` (${face - through} blocked)` : ''
+    const blocked = total - through ? ` (${total - through} blocked)` : ''
     if (acted.nextAction === 'bite') {
       const drained = Math.min(acted.maxHp - acted.hp, through)
       acted = { ...acted, hp: acted.hp + drained }
-      log.push(`${actor.name} bites with d${die.sides}: ${face} → you take ${through}${blocked}, it drains ${drained}`)
+      log.push(`${actor.name} bites with ${text} → you take ${through}${blocked}, it drains ${drained}`)
     } else {
-      log.push(`${actor.name} attacks with d${die.sides}: ${face} → you take ${through}${blocked}`)
+      log.push(`${actor.name} attacks with ${text} → you take ${through}${blocked}`)
     }
   }
 
   const next: GameState = { ...state, hp: Math.max(0, hp), block, sturdyBlock, log }
-  acted = { ...acted, nextAction: pickWeighted(acted.chain[actor.nextAction](ctxOf(acted, next)), rng) }
+  const nextAction = pickWeighted(acted.chain[actor.nextAction](ctxOf(acted, next)), rng)
+  acted = { ...acted, nextAction, nextCount: pickCount(acted.hand, rng) }
   const result = { ...next, enemies: next.enemies.map(e => (e.id === acted.id ? acted : e)) }
   if (hp <= 0) return { ...result, status: 'lost', log: [...log, 'You died.'] }
   return result

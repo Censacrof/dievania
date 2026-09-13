@@ -12,7 +12,7 @@ const d = (id: number, s: Die['sides']): Die => ({ id, sides: s })
 
 /** Play the whole player hand with one action, rolling `face` on each die */
 const playAll = (s: GameState, action: 'mace' | 'shield' | 'miracle' | 'skip', face: number) =>
-  s.hand.reduce((st, die) => playerAction(st, action, die.id, 0, q(f(face, die.sides))), s)
+  s.hand.reduce((st, die) => playerAction(st, action, [die.id], 0, q(f(face, die.sides))), s)
 
 describe('newGame', () => {
   it('starts in the player phase with 30 HP, no Block, 4 dice in hand, facing the Slime', () => {
@@ -33,6 +33,7 @@ describe('newGame', () => {
     expect(sides(slime.hand)).toEqual([8, 8])
     expect(sides(slime.bag)).toEqual([6, 6])
     expect(slime.nextAction).toBe('attack')
+    expect(slime.nextCount).toBe(1)
   })
 })
 
@@ -60,7 +61,7 @@ describe('pickWeighted', () => {
 describe('playerAction', () => {
   it('Mace rolls one die and damages the target immediately; the die goes to discard', () => {
     const s = newGame(zero)
-    const next = playerAction(s, 'mace', 0, 0, q(f(4, 6)))
+    const next = playerAction(s, 'mace', [0], 0, q(f(4, 6)))
     expect(next.enemies[0].hp).toBe(22)
     expect(next.hand.map(x => x.id)).toEqual([1, 2, 3])
     expect(next.discard.map(x => x.id)).toEqual([0])
@@ -71,30 +72,30 @@ describe('playerAction', () => {
   it("Mace is absorbed by the target's Block, which is consumed", () => {
     const base = newGame(zero)
     const s = { ...base, enemies: [{ ...base.enemies[0], block: 3 }] }
-    const partial = playerAction(s, 'mace', 0, 0, q(f(4, 6)))
+    const partial = playerAction(s, 'mace', [0], 0, q(f(4, 6)))
     expect(partial.enemies[0].hp).toBe(25)
     expect(partial.enemies[0].block).toBe(0)
-    const blocked = playerAction(s, 'mace', 0, 0, q(f(2, 6)))
+    const blocked = playerAction(s, 'mace', [0], 0, q(f(2, 6)))
     expect(blocked.enemies[0].hp).toBe(26)
     expect(blocked.enemies[0].block).toBe(1)
   })
 
   it('Shield adds the roll to Block', () => {
     const s = newGame(zero)
-    const a = playerAction(s, 'shield', 0, 0, q(f(5, 6)))
+    const a = playerAction(s, 'shield', [0], 0, q(f(5, 6)))
     expect(a.block).toBe(5)
-    expect(playerAction(a, 'shield', 1, 0, q(f(2, 6))).block).toBe(7)
+    expect(playerAction(a, 'shield', [1], 0, q(f(2, 6))).block).toBe(7)
   })
 
   it('Miracle heals floor(roll/2), capped at max HP', () => {
     const s = { ...newGame(zero), hp: 10 }
-    expect(playerAction(s, 'miracle', 0, 0, q(f(5, 6))).hp).toBe(12)
-    expect(playerAction({ ...s, hp: 29 }, 'miracle', 0, 0, q(f(6, 6))).hp).toBe(30)
+    expect(playerAction(s, 'miracle', [0], 0, q(f(5, 6))).hp).toBe(12)
+    expect(playerAction({ ...s, hp: 29 }, 'miracle', [0], 0, q(f(6, 6))).hp).toBe(30)
   })
 
   it('Skip discards the die and does nothing else', () => {
     const s = newGame(zero)
-    const next = playerAction(s, 'skip', 2, 0, zero)
+    const next = playerAction(s, 'skip', [2], 0, zero)
     expect(next.hand.map(x => x.id)).toEqual([0, 1, 3])
     expect(next.discard.map(x => x.id)).toEqual([2])
     expect([next.hp, next.block, next.enemies[0].hp]).toEqual([30, 0, 26])
@@ -102,9 +103,9 @@ describe('playerAction', () => {
 
   it('rejects a die not in hand, an invalid Mace target, and acting out of phase', () => {
     const s = newGame(zero)
-    expect(() => playerAction(s, 'mace', 9, 0, zero)).toThrow(/hand/)
-    expect(() => playerAction(s, 'mace', 0, 7, zero)).toThrow(/target/i)
-    expect(() => playerAction({ ...s, phase: 'enemy' }, 'shield', 0, 0, zero)).toThrow(/phase/)
+    expect(() => playerAction(s, 'mace', [9], 0, zero)).toThrow(/hand/)
+    expect(() => playerAction(s, 'mace', [0], 7, zero)).toThrow(/target/i)
+    expect(() => playerAction({ ...s, phase: 'enemy' }, 'shield', [0], 0, zero)).toThrow(/phase/)
   })
 
   it('using the last die ends the player turn and resets enemy Block', () => {
@@ -120,18 +121,18 @@ describe('playerAction', () => {
   it('killing the last enemy of a normal fight opens the reward phase with three offers', () => {
     const base = newGame(zero)
     const s = { ...base, enemies: [{ ...base.enemies[0], hp: 3 }] }
-    const next = playerAction(s, 'mace', 0, 0, q(f(3, 6)))
+    const next = playerAction(s, 'mace', [0], 0, q(f(3, 6)))
     expect(next.log).toContain('Slime dies')
     expect(next.phase).toBe('reward')
     expect(next.encounter).toBe(0)
     expect(next.offers).toHaveLength(3)
-    expect(() => playerAction(next, 'skip', 1, 0, zero)).toThrow(/phase/)
+    expect(() => playerAction(next, 'skip', [1], 0, zero)).toThrow(/phase/)
   })
 
   it('killing the Vampire Knight wins the game', () => {
     const base = newGame(zero, 3)
     const s = { ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }
-    expect(playerAction(s, 'mace', 0, 0, zero).status).toBe('won')
+    expect(playerAction(s, 'mace', [0], 0, zero).status).toBe('won')
   })
 })
 
@@ -248,7 +249,7 @@ describe('loadEncounter', () => {
 describe('rewards', () => {
   const cleared = (): GameState => {
     const base = newGame(zero)
-    return playerAction({ ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }, 'mace', 0, 0, q(f(1, 6)))
+    return playerAction({ ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }, 'mace', [0], 0, q(f(1, 6)))
   }
 
   it('rollOffers draws three distinct offers; rng 0 walks the pool in order', () => {
@@ -334,7 +335,7 @@ describe('enchantments', () => {
     ({ ...s, hand: s.hand.map((d, i) => (i === 0 ? { ...d, enchant } : d)) })
 
   it('Heavy adds 2 to Mace', () => {
-    const next = playerAction(withEnchant('heavy'), 'mace', 0, 0, q(f(4, 6)))
+    const next = playerAction(withEnchant('heavy'), 'mace', [0], 0, q(f(4, 6)))
     expect(next.enemies[0].hp).toBe(20)
     expect(next.log.at(-1)).toContain('Heavy')
   })
@@ -342,35 +343,35 @@ describe('enchantments', () => {
   it('Piercing ignores the target Block', () => {
     const base = withEnchant('piercing')
     const s = { ...base, enemies: [{ ...base.enemies[0], block: 3 }] }
-    const next = playerAction(s, 'mace', 0, 0, q(f(4, 6)))
+    const next = playerAction(s, 'mace', [0], 0, q(f(4, 6)))
     expect(next.enemies[0].hp).toBe(22)
     expect(next.enemies[0].block).toBe(3)
   })
 
   it('Holy heals the full roll', () => {
-    expect(playerAction({ ...withEnchant('holy'), hp: 10 }, 'miracle', 0, 0, q(f(5, 6))).hp).toBe(15)
+    expect(playerAction({ ...withEnchant('holy'), hp: 10 }, 'miracle', [0], 0, q(f(5, 6))).hp).toBe(15)
   })
 
   it('Lucky rerolls a 1 once', () => {
-    const next = playerAction(withEnchant('lucky'), 'mace', 0, 0, q(f(1, 6), f(5, 6)))
+    const next = playerAction(withEnchant('lucky'), 'mace', [0], 0, q(f(1, 6), f(5, 6)))
     expect(next.enemies[0].hp).toBe(21)
-    const unlucky = playerAction(withEnchant('lucky'), 'mace', 0, 0, q(f(1, 6), f(1, 6)))
+    const unlucky = playerAction(withEnchant('lucky'), 'mace', [0], 0, q(f(1, 6), f(1, 6)))
     expect(unlucky.enemies[0].hp).toBe(25)
   })
 
   it('Echo draws a die after use', () => {
-    const next = playerAction(withEnchant('echo'), 'skip', 0, 0, zero)
+    const next = playerAction(withEnchant('echo'), 'skip', [0], 0, zero)
     expect(next.hand.map(d => d.id)).toEqual([1, 2, 3, 4])
     expect(next.bag).toHaveLength(3)
   })
 
   it('Sturdy Block survives upkeep and is eaten after normal Block', () => {
-    let s = playerAction(withEnchant('sturdy'), 'shield', 0, 0, q(f(5, 6)))
+    let s = playerAction(withEnchant('sturdy'), 'shield', [0], 0, q(f(5, 6)))
     expect([s.block, s.sturdyBlock]).toEqual([0, 5])
-    s = playerAction(s, 'shield', 1, 0, q(f(2, 6)))
+    s = playerAction(s, 'shield', [1], 0, q(f(2, 6)))
     expect([s.block, s.sturdyBlock]).toEqual([2, 5])
-    s = playerAction(s, 'skip', 2, 0, zero)
-    s = playerAction(s, 'skip', 3, 0, zero)
+    s = playerAction(s, 'skip', [2], 0, zero)
+    s = playerAction(s, 'skip', [3], 0, zero)
     s = enemyStep(s, q(f(4, 8)))
     expect([s.hp, s.block, s.sturdyBlock]).toEqual([30, 0, 3])
     s = enemyStep(s, q(f(1, 8)))
@@ -388,8 +389,90 @@ describe('perks', () => {
   it('Overkill carries excess Mace damage to the next living enemy', () => {
     const base = newGame(zero, 2)
     const s = { ...base, perks: ['overkill' as const], enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }, base.enemies[2]] }
-    const next = playerAction(s, 'mace', 0, 0, q(f(6, 6)))
+    const next = playerAction(s, 'mace', [0], 0, q(f(6, 6)))
     expect(next.enemies.map(e => [e.hp, e.block])).toEqual([[0, 0], [7, 0], [26, 0]])
     expect(next.log.at(-1)).toContain('Overkill')
+  })
+})
+
+describe('multi-die actions', () => {
+  it('Mace with two dice sums both rolls', () => {
+    const s = newGame(zero)
+    const next = playerAction(s, 'mace', [0, 1], 0, q(f(4, 6), f(5, 6)))
+    expect(next.enemies[0].hp).toBe(17)
+    expect(next.hand.map(x => x.id)).toEqual([2, 3])
+    expect(next.discard.map(x => x.id)).toEqual([0, 1])
+    expect(next.log.at(-1)).toBe('You swing the Mace with d6 + d6: 4 + 5 = 9 → Slime takes 9')
+  })
+
+  const tagged = (tags: (Die['enchant'] | undefined)[], s = newGame(zero)): GameState =>
+    ({ ...s, hand: s.hand.map((d, i) => ({ ...d, enchant: tags[i] })) })
+
+  it('Heavy adds 2 per Heavy die; Piercing lets only its own roll through Block', () => {
+    const heavy = playerAction(tagged(['heavy', undefined]), 'mace', [0, 1], 0, q(f(1, 6), f(1, 6)))
+    expect(heavy.enemies[0].hp).toBe(22)
+    const base = tagged(['piercing', undefined])
+    const s = { ...base, enemies: [{ ...base.enemies[0], block: 3 }] }
+    const pierced = playerAction(s, 'mace', [0, 1], 0, q(f(4, 6), f(2, 6)))
+    expect(pierced.enemies[0].hp).toBe(22)
+    expect(pierced.enemies[0].block).toBe(1)
+  })
+
+  it('Holy heals its own roll in full, the rest halved; Sturdy splits Block the same way', () => {
+    const holy = playerAction({ ...tagged(['holy', undefined]), hp: 10 }, 'miracle', [0, 1], 0, q(f(5, 6), f(4, 6)))
+    expect(holy.hp).toBe(17)
+    const sturdy = playerAction(tagged(['sturdy', undefined]), 'shield', [0, 1], 0, q(f(5, 6), f(2, 6)))
+    expect([sturdy.block, sturdy.sturdyBlock]).toEqual([2, 5])
+  })
+
+  it('Echo draws one die per Echo die used', () => {
+    const next = playerAction(tagged(['echo', 'echo']), 'skip', [0, 1], 0, zero)
+    expect(next.hand.map(x => x.id)).toEqual([2, 3, 4, 5])
+  })
+})
+
+describe('Rosary Beads', () => {
+  it('heals 5 whenever an action rolls a total of 7', () => {
+    const s = { ...newGame(zero), hp: 20 }
+    const next = playerAction(s, 'mace', [0, 1], 0, q(f(3, 6), f(4, 6)))
+    expect(next.hp).toBe(25)
+    expect(next.log.at(-1)).toContain('Rosary Beads')
+    expect(playerAction(s, 'mace', [0, 1], 0, q(f(3, 6), f(3, 6))).hp).toBe(20)
+    expect(playerAction({ ...s, hp: 28 }, 'shield', [0, 1], 0, q(f(3, 6), f(4, 6))).hp).toBe(30)
+  })
+
+  it('does not trigger on Skip', () => {
+    const s = { ...newGame(zero), hp: 20 }
+    expect(playerAction(s, 'skip', [0, 1], 0, zero).hp).toBe(20)
+  })
+})
+
+describe('enemy multi-die actions', () => {
+  const enemyPhase = (s: GameState) => s.hand.reduce((st, die) => playerAction(st, 'skip', [die.id], 0, zero), s)
+
+  it('the acting enemy spends nextCount dice in one action', () => {
+    const base = enemyPhase(newGame(zero))
+    const s = { ...base, enemies: [{ ...base.enemies[0], nextCount: 2 }] }
+    const next = enemyStep(s, q(f(5, 8), f(3, 8)))
+    expect(next.hp).toBe(22)
+    expect(next.enemies[0].hand).toHaveLength(0)
+    expect(next.log.at(-1)).toBe('Slime attacks with d8 + d8: 5 + 3 = 8 → you take 8')
+  })
+
+  it('after acting it picks the next action, then how many of the remaining dice to commit', () => {
+    const s = enemyPhase(newGame(zero, 3)) // knight, hand of 3
+    const next = enemyStep(s, q(f(1, 6), 0, 0.99))
+    expect(next.enemies[0].hand).toHaveLength(2)
+    expect(next.enemies[0].nextAction).toBe('attack')
+    expect(next.enemies[0].nextCount).toBe(2)
+  })
+
+  it('upkeep re-picks the count for the fresh hand', () => {
+    let s = enemyPhase(newGame(zero))
+    s = enemyStep(s, zero)
+    s = enemyStep(s, zero)
+    const next = enemyStep(s, q(0, 0, 0.99)) // slime draws 2, then picks its count
+    expect(next.phase).toBe('player')
+    expect(next.enemies[0].nextCount).toBe(2)
   })
 })
