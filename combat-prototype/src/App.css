@@ -81,3 +81,32 @@ button:disabled { cursor: not-allowed; }
 .trinket { cursor: help; justify-self: start; }
 .offer[data-tip]::after { bottom: auto; top: calc(100% + 8px); }
 .rewards [data-tip]:hover::after, .rewards [data-tip]:focus-visible::after { bottom: auto; top: calc(100% + 8px); }
+
+/* Phones */
+@media (max-width: 640px) {
+  main { padding: .75rem; gap: .6rem; }
+  header strong { font-size: 1rem; }
+  .enemy { grid-template-columns: 80px 1fr; column-gap: .6rem; padding: .6rem; }
+  .enemy img { width: 80px; height: 80px; }
+  .player { grid-template-columns: 1fr; padding: .6rem; row-gap: .5rem; }
+  .player > img { width: 72px; height: 72px; }
+  .die { width: 60px; height: 60px; font-size: 1rem; }
+  .confirm { flex: 1 1 100%; margin-left: 0; padding: .6rem; }
+  .action { padding: .3rem .6rem; gap: .35rem; font-size: .9rem; }
+  .action img { width: 28px; height: 28px; }
+  .actions small { flex: 1 1 100%; margin-left: 0; }
+  .log { height: 160px; font-size: .78rem; }
+  .offer { flex: 1 1 100%; }
+  [data-tip]:hover::after, [data-tip]:focus-visible::after, [data-tip]:focus::after { left: 0; transform: none; max-width: min(260px, calc(100vw - 3rem)); }
+}
+
+/* Touch screens have no hover: a tap (focus) shows the popover */
+@media (hover: none) {
+  [data-tip]:focus::after {
+    content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+    width: max-content; max-width: 240px; padding: .45rem .65rem; border-radius: 6px; background: #000; color: #eee;
+    border: 1px solid #444; font-size: .8rem; font-weight: normal; line-height: 1.3; text-align: left; text-transform: none;
+    white-space: normal; z-index: 10; pointer-events: none;
+  }
+  .rewards [data-tip]:focus::after { bottom: auto; top: calc(100% + 8px); }
+}
