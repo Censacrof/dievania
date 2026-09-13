@@ -23,3 +23,13 @@ describe('reward screen', () => {
     expect(headerText('player', null)).toBe('Your turn')
   })
 })
+
+describe('board strip', () => {
+  it('renders 24 cells, each explaining itself, with the token on the current cell', () => {
+    const html = renderToStaticMarkup(<App initial={{ ...newGame(() => 0), position: 6 }} />)
+    expect(html.match(/class="cell /g)).toHaveLength(24)
+    expect(html).toContain('Critical: Mace damage is doubled')
+    expect(html).toContain('Blank: Nothing happens')
+    expect(html).toMatch(/class="cell critical here"/)
+  })
+})

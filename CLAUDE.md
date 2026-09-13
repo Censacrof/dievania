@@ -36,6 +36,8 @@ The prototype is deliberately three files plus tests.
 - `enemy` — `enemyStep(state, rng)`: exactly one enemy action per call (the first living enemy with dice left spends its first `nextCount` dice on `nextAction`), or the upkeep that redraws everyone and returns to `player`. The UI calls it on a timer so enemy turns play back step by step.
 - `reward` — entered when a non-final fight is cleared; `rollOffers` fills `state.offers`, `chooseReward(state, index | null, dieId, rng)` applies one and calls `loadEncounter` for the next fight.
 
+The board (`state.board`, `state.position`) moves only on the player's rolling actions; cell effects are applied inside `playerAction` right after the roll, and the position is never reset between fights.
+
 Key model facts that span files: the player's dice are a persistent `dice` collection rebuilt into the bag each fight; each `Die` may carry one `enchant` whose effect is per-die even in a multi-die action; `block` expires at the owner's turn start while `sturdyBlock` never does; enemies pick their next action through a Markov chain (`chain[lastAction](ctx)` → weights) and their dice count uniformly at random.
 
 **`src/game/content.ts` — data only.** `PLAYER` (HP, bag, trinket), `ENCOUNTERS` (list of enemy groups), enemy definitions with their chains, and every UI text map (`ACTION_TEXT`, `ENCHANT_TEXT`, `PERK_TEXT`, `OFFER_TEXT`) plus small text helpers. Balance changes go here, not in the engine; the one exception is `OFFER_WEIGHTS` (reward draw odds), which sits in the engine next to `rollOffers`. Content imports only types from the engine, so the circular import is erased at compile time.
