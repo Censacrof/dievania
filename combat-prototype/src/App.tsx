@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { type Die, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
-import { ACTION_TEXT, ENCHANT_TEXT, ENCOUNTERS, PERK_TEXT, PLAYER } from './game/content'
+import { type Die, type Offer, type PlayerAction, alive, chooseReward, describeOffer, enemyStep, newGame, offerAccepts, offerNeedsDie, playerAction } from './game/engine'
+import { ACTION_TEXT, ENCHANT_TEXT, ENCOUNTERS, OFFER_TEXT, PERK_TEXT, PLAYER } from './game/content'
 import './App.css'
 
 const ACTIONS: PlayerAction[] = ['mace', 'shield', 'miracle', 'skip']
@@ -9,6 +9,7 @@ const ICONS: Partial<Record<PlayerAction, string>> = { mace: 'mace.png', shield:
 const ENEMY_STEP_MS = 900
 const label = (d: Die) => `d${d.sides}${d.enchant ? `·${d.enchant}` : ''}`
 const list = (dice: Die[]) => (dice.length ? dice.map(label).join(' ') : '—')
+const offerTip = (o: Offer) => (o.kind === 'enchant' ? ENCHANT_TEXT[o.enchant] : o.kind === 'perk' ? PERK_TEXT[o.perk] : OFFER_TEXT[o.kind])
 const Bar = ({ value, max }: { value: number; max: number }) => (
   <span className="bar"><span style={{ width: `${(100 * value) / max}%` }} /></span>
 )
@@ -62,14 +63,14 @@ export default function App() {
             <button
               key={i}
               className={`offer ${pendingOffer === i ? 'selected' : ''}`}
-              data-tip={o.kind === 'enchant' ? ENCHANT_TEXT[o.enchant] : o.kind === 'perk' ? PERK_TEXT[o.perk] : undefined}
+              data-tip={offerTip(o)}
               onClick={() => pickOffer(i)}
             >
               <strong>{o.kind === 'perk' ? o.perk : o.kind}</strong>
               <span>{describeOffer(o)}</span>
             </button>
           ))}
-          <button className="offer skip" onClick={() => takeReward(null)}>
+          <button className="offer skip" data-tip="Take no reward. A small bag stays predictable." onClick={() => takeReward(null)}>
             <strong>Skip</strong>
             <span>Keep your bag as it is</span>
           </button>

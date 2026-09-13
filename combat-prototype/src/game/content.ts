@@ -26,6 +26,13 @@ export const ENCHANT_TEXT: Record<Enchant, string> = {
   echo: 'Echo: after using this die, draw one die from your bag into your hand.',
 }
 
+export const OFFER_TEXT = {
+  upgrade: 'Pick a die in your bag and step it up one size: d4 → d6 → d8 → d10 → d12 → d20. Its enchantment is kept.',
+  add: 'A new die joins your bag for the rest of the run. More dice means each single die is drawn less often.',
+  remove: 'Pick a die and take it out of your bag for good. Fewer dice means your best dice show up more often.',
+  handSize: 'Draw one more die every turn, for the rest of the run. Maximum hand size is 6.',
+}
+
 export const PERK_TEXT: Record<Perk, string> = {
   steadyHands: 'Steady hands: every fight opens with your two largest dice in hand.',
   overkill: 'Overkill: when the Mace kills, damage beyond the kill hits the next living enemy, through its Block.',
