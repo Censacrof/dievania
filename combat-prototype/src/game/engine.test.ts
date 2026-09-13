@@ -110,7 +110,7 @@ describe('playerAction', () => {
 
   it('using the last die ends the player turn and resets enemy Block', () => {
     const base = newGame(zero)
-    const s = { ...base, enemies: [{ ...base.enemies[0], block: 4 }] }
+    const s = { ...base, position: 4, enemies: [{ ...base.enemies[0], block: 4 }] } // walks 5..8: no Fortune draw
     const next = playAll(s, 'shield', 1)
     expect(next.hand).toHaveLength(0)
     expect(next.phase).toBe('enemy')
@@ -388,7 +388,7 @@ describe('perks', () => {
 
   it('Overkill carries excess Mace damage to the next living enemy', () => {
     const base = newGame(zero, 2)
-    const s = { ...base, perks: ['overkill' as const], enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }, base.enemies[2]] }
+    const s = { ...base, perks: ['overkill' as const], position: 1, enemies: [{ ...base.enemies[0], hp: 2 }, { ...base.enemies[1], block: 1 }, base.enemies[2]] } // roll 6 → cell 7, blank
     const next = playerAction(s, 'mace', [0], 0, q(f(6, 6)))
     expect(next.enemies.map(e => [e.hp, e.block])).toEqual([[0, 0], [7, 0], [26, 0]])
     expect(next.log.at(-1)).toContain('Overkill')
@@ -411,7 +411,7 @@ describe('multi-die actions', () => {
   it('Heavy adds 2 per Heavy die; Piercing lets only its own roll through Block', () => {
     const heavy = playerAction(tagged(['heavy', undefined]), 'mace', [0, 1], 0, q(f(1, 6), f(1, 6)))
     expect(heavy.enemies[0].hp).toBe(22)
-    const base = tagged(['piercing', undefined])
+    const base = tagged(['piercing', undefined], { ...newGame(zero), position: 1 }) // total 6 → cell 7, blank
     const s = { ...base, enemies: [{ ...base.enemies[0], block: 3 }] }
     const pierced = playerAction(s, 'mace', [0, 1], 0, q(f(4, 6), f(2, 6)))
     expect(pierced.enemies[0].hp).toBe(22)
@@ -506,5 +506,55 @@ describe('board', () => {
     const cleared = playerAction({ ...base, enemies: [{ ...base.enemies[0], hp: 1 }] }, 'mace', [0], 0, q(f(1, 6)))
     expect(cleared.position).toBe(21)
     expect(chooseReward(cleared, null, undefined, zero).position).toBe(21)
+  })
+
+  const at = (position: number, s: GameState = newGame(zero)): GameState => ({ ...s, position })
+  const withTags = (tags: (Die['enchant'] | undefined)[], s: GameState): GameState =>
+    ({ ...s, hand: s.hand.map((d, i) => ({ ...d, enchant: tags[i] })) })
+
+  it('Critical doubles the whole Mace hit before Block, Heavy and Piercing included', () => {
+    const plain = playerAction(at(0), 'mace', [0], 0, q(f(6, 6))) // lands 6
+    expect(plain.enemies[0].hp).toBe(14)
+    expect(plain.log.at(-1)).toContain('(Critical)')
+    const base = withTags(['heavy', 'piercing'], at(0))
+    const s = { ...base, enemies: [{ ...base.enemies[0], block: 4 }] }
+    const fancy = playerAction(s, 'mace', [0, 1], 0, q(f(3, 6), f(3, 6))) // total 6 → Critical
+    // normal part (3 + 2 Heavy) ×2 = 10 vs Block 4 → 6; piercing 3 ×2 = 6 → 12
+    expect(fancy.enemies[0].hp).toBe(14)
+    expect(fancy.enemies[0].block).toBe(0)
+  })
+
+  it('Critical does nothing for Shield or Miracle', () => {
+    expect(playerAction(at(0), 'shield', [0], 0, q(f(6, 6))).block).toBe(6)
+    expect(playerAction({ ...at(0), hp: 10 }, 'miracle', [0], 0, q(f(6, 6))).hp).toBe(13)
+  })
+
+  it('Cursed halves the action effect, rounded down, before Block', () => {
+    const base = at(7) // 7 + 6 = 13 → Cursed
+    const s = { ...base, enemies: [{ ...base.enemies[0], block: 2 }] }
+    expect(playerAction(s, 'mace', [0], 0, q(f(6, 6))).enemies[0].hp).toBe(25) // 3 − 2
+    expect(playerAction(base, 'shield', [0], 0, q(f(6, 6))).block).toBe(3)
+    expect(playerAction({ ...base, hp: 10 }, 'miracle', [0], 0, q(f(6, 6))).hp).toBe(11) // floor(3/2)
+    expect(playerAction(s, 'mace', [0], 0, q(f(6, 6))).log.at(-1)).toContain('(Cursed)')
+  })
+
+  it('Grace heals 5 and Bastion gives 5 Block, whatever the action', () => {
+    expect(playerAction({ ...at(4), hp: 20 }, 'mace', [0], 0, q(f(6, 6))).hp).toBe(25) // 10 → Grace
+    expect(playerAction({ ...at(4), hp: 28 }, 'mace', [0], 0, q(f(6, 6))).hp).toBe(30)
+    expect(playerAction(at(10), 'mace', [0], 0, q(f(6, 6))).block).toBe(5) // 16 → Bastion
+    expect(playerAction(at(10), 'shield', [0], 0, q(f(6, 6))).block).toBe(11)
+  })
+
+  it('Fortune draws one die, after Echo, reshuffling the discard when the bag is empty', () => {
+    const s = at(0)
+    const drawn = playerAction(s, 'mace', [0], 0, q(f(3, 6))) // 3 → Fortune
+    expect(drawn.hand.map(d => d.id)).toEqual([1, 2, 3, 4])
+    expect(drawn.log.at(-1)).toBe('Fortune: you draw d6')
+    const dry = playerAction({ ...s, bag: [], discard: [] }, 'mace', [0], 0, q(f(3, 6)))
+    expect(dry.hand.map(d => d.id)).toEqual([1, 2, 3, 0]) // the spent die comes back from the discard
+    const empty = playerAction({ ...s, bag: [], discard: [], hand: [s.hand[0]] }, 'mace', [0], 0, q(f(3, 6)))
+    expect(empty.hand.map(d => d.id)).toEqual([0])
+    const echo = playerAction(withTags(['echo'], s), 'mace', [0], 0, q(f(3, 6)))
+    expect(echo.hand).toHaveLength(5)
   })
 })

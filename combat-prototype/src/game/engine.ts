@@ -265,16 +265,21 @@ export function playerAction(state: GameState, action: PlayerAction, dieIds: num
   const cell: Cell = action === 'skip' ? 'blank' : state.board[position]
   next = { ...next, position }
   if (action !== 'skip') log.push(`You move ${total} → ${cell === 'blank' ? `cell ${position}` : `${CELL_NAME[cell]}!`}`)
+  const half = (n: number) => (cell === 'cursed' ? Math.floor(n / 2) : n)
+  const boost = (n: number) => (cell === 'critical' ? n * 2 : half(n)) // Mace only
+  const mark = cell === 'cursed' ? ' (Cursed)' : ''
 
   if (action === 'mace') {
     const heavy = 2 * count('heavy')
     const piercing = part('piercing')
-    const { through: normal, blockLeft } = absorb(total - piercing + heavy, target!.block)
-    const through = normal + piercing
-    const blocked = total + heavy - through
+    const power = boost(total - piercing + heavy)
+    const pierce = boost(piercing)
+    const { through: normal, blockLeft } = absorb(power, target!.block)
+    const through = normal + pierce
+    const blocked = power + pierce - through
     const hit = { ...target!, hp: Math.max(0, target!.hp - through), block: blockLeft }
     let enemies = next.enemies.map(e => (e.id === hit.id ? hit : e))
-    log.push(`You swing the Mace with ${text}${heavy ? ` +${heavy} Heavy` : ''} → ${hit.name} takes ${through}` + (blocked ? ` (${blocked} blocked)` : ''))
+    log.push(`You swing the Mace with ${text}${heavy ? ` +${heavy} Heavy` : ''}${cell === 'critical' ? ' (Critical)' : mark} → ${hit.name} takes ${through}` + (blocked ? ` (${blocked} blocked)` : ''))
     if (!alive(hit)) {
       log.push(`${hit.name} dies`)
       const excess = through - target!.hp
@@ -290,13 +295,13 @@ export function playerAction(state: GameState, action: PlayerAction, dieIds: num
     next = { ...next, enemies }
   } else if (action === 'shield') {
     const sturdy = part('sturdy')
-    next = { ...next, block: next.block + total - sturdy, sturdyBlock: next.sturdyBlock + sturdy }
-    log.push(`You raise the Shield with ${text} → Block ${next.block}` + (sturdy ? `, Sturdy Block ${next.sturdyBlock}` : ''))
+    next = { ...next, block: next.block + half(total - sturdy), sturdyBlock: next.sturdyBlock + half(sturdy) }
+    log.push(`You raise the Shield with ${text}${mark} → Block ${next.block}` + (sturdy ? `, Sturdy Block ${next.sturdyBlock}` : ''))
   } else if (action === 'miracle') {
     const holy = part('holy')
-    const heal = Math.min(state.maxHp - next.hp, holy + Math.floor((total - holy) / 2))
+    const heal = Math.min(state.maxHp - next.hp, half(holy + Math.floor((total - holy) / 2)))
     next = { ...next, hp: next.hp + heal }
-    log.push(`Miracle with ${text} → you heal ${heal}`)
+    log.push(`Miracle with ${text}${mark} → you heal ${heal}`)
   } else {
     log.push(`You skip ${dice.map(d => `d${d.sides}`).join(' + ')}`)
   }
@@ -312,6 +317,20 @@ export function playerAction(state: GameState, action: PlayerAction, dieIds: num
     const extra = draw({ bag: next.bag, discard: next.discard, hand: [] }, echoes, rng)
     next = { ...next, bag: extra.bag, discard: extra.discard, hand: [...next.hand, ...extra.hand] }
     if (extra.hand.length) log.push(`Echo: you draw ${extra.hand.map(d => `d${d.sides}`).join(' + ')}`)
+  }
+
+  // Cell bonuses
+  if (cell === 'bastion') {
+    next = { ...next, block: next.block + 5 }
+    log.push(`Bastion: +5 Block → ${next.block}`)
+  } else if (cell === 'grace') {
+    const heal = Math.min(state.maxHp - next.hp, 5)
+    next = { ...next, hp: next.hp + heal }
+    log.push(`Grace: you heal ${heal}`)
+  } else if (cell === 'fortune') {
+    const extra = draw({ bag: next.bag, discard: next.discard, hand: [] }, 1, rng)
+    next = { ...next, bag: extra.bag, discard: extra.discard, hand: [...next.hand, ...extra.hand] }
+    if (extra.hand.length) log.push(`Fortune: you draw d${extra.hand[0].sides}`)
   }
   next = { ...next, log }
 
